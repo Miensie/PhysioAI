@@ -1,21 +1,14 @@
-# ================================================================
-# render.yaml — Configuration de déploiement Render.com
-# Placer ce fichier à la RACINE du dépôt GitHub
-#
-# Render détecte automatiquement ce fichier et configure le service.
-# ================================================================
-
+# render.yaml — À placer à la RACINE du dépôt GitHub
 services:
   - type: web
     name: physioai-backend
     runtime: python
-    region: frankfurt          # Plus proche de l'Afrique de l'Ouest / Europe
-    plan: free                 # free | starter | standard
-    rootDir: backend           # Dossier contenant main.py
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    region: frankfurt
+    plan: free
+    # PAS de rootDir — les commandes gèrent le chemin
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
-
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -23,9 +16,4 @@ services:
         value: 10000
       - key: ENVIRONMENT
         value: production
-      # Ajouter vos clés API si nécessaire :
-      # - key: SECRET_KEY
-      #   generateValue: true
-
-    # Auto-déploiement à chaque push sur main
     autoDeploy: true

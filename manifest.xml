@@ -17,14 +17,14 @@
   <DisplayName DefaultValue="PhysioAI Lab"/>
   <Description DefaultValue="Modélisation physico-chimique + IA + Deep Learning dans Excel"/>
 
-  <IconUrl DefaultValue="https://VOTRE-USERNAME.github.io/physioai-lab/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://VOTRE-USERNAME.github.io/physioai-lab/assets/icon-64.png"/>
-  <SupportUrl DefaultValue="https://github.com/VOTRE-USERNAME/physioai-lab"/>
+  <IconUrl DefaultValue="https://miensie.github.io/PhysioAI/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://miensie.github.io/PhysioAI/icon-64.png"/>
+  <SupportUrl DefaultValue="https://github.com/miensie/PhysioAI"/>
 
   <AppDomains>
-    <AppDomain>https://VOTRE-USERNAME.github.io</AppDomain>
+    <AppDomain>https://miensie.github.io</AppDomain>
     <!-- Domaine du backend (Render, Railway, etc.) -->
-    <AppDomain>https://physioai-backend.onrender.com</AppDomain>
+    <AppDomain>https://PhysioAI-backend.onrender.com</AppDomain>
   </AppDomains>
 
   <Hosts>
@@ -32,7 +32,7 @@
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://VOTRE-USERNAME.github.io/physioai-lab/taskpane.html"/>
+    <SourceLocation DefaultValue="https://miensie.github.io/PhysioAI/taskpane.html"/>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -76,13 +76,13 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://VOTRE-USERNAME.github.io/physioai-lab/assets/icon-16.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://VOTRE-USERNAME.github.io/physioai-lab/assets/icon-32.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://VOTRE-USERNAME.github.io/physioai-lab/assets/icon-80.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="https://miensie.github.io/PhysioAI/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://miensie.github.io/PhysioAI/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://miensie.github.io/PhysioAI/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Commands.Url" DefaultValue="https://VOTRE-USERNAME.github.io/physioai-lab/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://VOTRE-USERNAME.github.io/physioai-lab/taskpane.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://miensie.github.io/PhysioAI/commands.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://miensie.github.io/PhysioAI/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GroupLabel"           DefaultValue="PhysioAI"/>

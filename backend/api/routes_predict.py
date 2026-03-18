@@ -1,4 +1,8 @@
 """api/routes_predict.py — Endpoints /predict"""
+import sys, os
+_b = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _b not in sys.path: sys.path.insert(0, _b)
+
 
 import logging
 from typing import Optional

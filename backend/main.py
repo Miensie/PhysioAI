@@ -1,21 +1,26 @@
 """
 ================================================================
-PhysioAI Lab — main.py
-Point d'entrée FastAPI
+PhysioAI Lab — main.py (version corrigée pour Render.com)
 
-Architecture :
-  /analyze    → Analyse statistique + conseil IA
-  /model      → Régression, modèles physiques
-  /simulate   → Simulation ODE / cinétique
-  /train_ai   → Entraînement ML / Deep Learning
-  /predict    → Prédiction sur nouvelles données
-  /optimize   → Optimisation paramètres
+Correction clé : ajout de sys.path pour que Python trouve
+les modules api/, modeling/, ai/, etc. peu importe depuis
+quel répertoire uvicorn est lancé.
 ================================================================
 """
 
 import logging
+import os
+import sys
 import time
 from contextlib import asynccontextmanager
+
+# ── CORRECTION CRITIQUE : ajouter le répertoire backend/ au sys.path ─────────
+# Nécessaire quand uvicorn est lancé depuis la racine du repo (cas Render/Railway)
+# Exemple :  uvicorn backend.main:app  →  sys.path ne contient pas backend/
+_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
+# ─────────────────────────────────────────────────────────────────────────────
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -37,6 +42,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger("physioai")
 
+# ── Configuration ─────────────────────────────────────────────────────────────
+ENVIRONMENT  = os.getenv("ENVIRONMENT", "development")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "")
+
+# CORS : en prod, autoriser GitHub Pages + Excel Online
+if ENVIRONMENT == "production":
+    ALLOWED_ORIGINS = [
+        o for o in [
+            FRONTEND_URL,
+            "https://excel.officeapps.live.com",
+            "https://*.microsoft.com",
+            "https://*.office.com",
+        ] if o
+    ]
+    ALLOW_ORIGIN_REGEX = r"https://.*\.github\.io"
+else:
+    ALLOWED_ORIGINS    = ["*"]
+    ALLOW_ORIGIN_REGEX = None
+
+logger.info(f"Environnement : {ENVIRONMENT} | PYTHONPATH contient : {_BACKEND_DIR}")
 
 # ── Lifespan ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
@@ -45,21 +70,10 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("🛑 PhysioAI Lab arrêté")
 
-
 # ── Application ───────────────────────────────────────────────────────────────
 app = FastAPI(
     title="PhysioAI Lab API",
-    description="""
-## API de modélisation physico-chimique avec IA
-
-Fonctionnalités :
-- **Analyse** : statistiques descriptives, corrélation, conseil IA
-- **Modélisation** : régression linéaire/polynomiale, modèles physiques
-- **Simulation** : ODE, cinétique chimique, diffusion
-- **IA/ML** : Random Forest, SVR, Deep Learning PyTorch
-- **Hybride** : modèle physique + réseau de neurones
-- **Optimisation** : calibration automatique de paramètres
-    """,
+    description="Modélisation physico-chimique + IA + Deep Learning",
     version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -67,77 +81,70 @@ Fonctionnalités :
 )
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],          # En production : ["https://yourdomain.com"]
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+cors_kwargs = dict(
+    allow_origins     = ALLOWED_ORIGINS,
+    allow_credentials = True,
+    allow_methods     = ["GET", "POST", "OPTIONS"],
+    allow_headers     = ["Content-Type", "Authorization", "Accept"],
+    max_age           = 600,
 )
+if ALLOW_ORIGIN_REGEX:
+    cors_kwargs["allow_origin_regex"] = ALLOW_ORIGIN_REGEX
 
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
-# ── Middleware de timing ──────────────────────────────────────────────────────
+# ── Timing ────────────────────────────────────────────────────────────────────
 @app.middleware("http")
-async def add_timing_header(request: Request, call_next):
-    start = time.perf_counter()
+async def timing(request: Request, call_next):
+    t0       = time.perf_counter()
     response = await call_next(request)
-    elapsed = time.perf_counter() - start
+    elapsed  = time.perf_counter() - t0
     response.headers["X-Process-Time"] = f"{elapsed:.4f}s"
     logger.info(f"{request.method} {request.url.path} → {response.status_code} ({elapsed:.3f}s)")
     return response
 
-
-# ── Gestionnaire d'erreurs global ─────────────────────────────────────────────
+# ── Error handler ─────────────────────────────────────────────────────────────
 @app.exception_handler(Exception)
-async def global_error_handler(request: Request, exc: Exception):
-    logger.error(f"Erreur non gérée sur {request.url.path}: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"error": "Erreur interne du serveur", "detail": str(exc)},
-    )
-
+async def global_error(request: Request, exc: Exception):
+    logger.error(f"Erreur sur {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(status_code=500, content={"error": str(exc)})
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(router_analyze,  prefix="/analyze",  tags=["Analyse"])
-app.include_router(router_model,    prefix="/model",    tags=["Modélisation"])
+app.include_router(router_model,    prefix="/model",    tags=["Modèle"])
 app.include_router(router_simulate, prefix="/simulate", tags=["Simulation"])
-app.include_router(router_train,    prefix="/train_ai", tags=["IA / Deep Learning"])
+app.include_router(router_train,    prefix="/train_ai", tags=["IA/DL"])
 app.include_router(router_predict,  prefix="/predict",  tags=["Prédiction"])
 app.include_router(router_optimize, prefix="/optimize", tags=["Optimisation"])
 
-
-# ── Health check ──────────────────────────────────────────────────────────────
+# ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/health", tags=["Système"])
 async def health():
     import torch, sklearn, numpy, scipy
     return {
-        "status": "ok",
-        "version": "2.0.0",
+        "status":      "ok",
+        "environment": ENVIRONMENT,
+        "version":     "2.0.0",
+        "python_path": _BACKEND_DIR,
         "libs": {
-            "numpy":      numpy.__version__,
-            "scipy":      scipy.__version__,
-            "sklearn":    sklearn.__version__,
-            "torch":      torch.__version__,
-            "cuda":       torch.cuda.is_available(),
+            "numpy":   numpy.__version__,
+            "scipy":   scipy.__version__,
+            "sklearn": sklearn.__version__,
+            "torch":   torch.__version__,
+            "cuda":    torch.cuda.is_available(),
         },
     }
 
-
 @app.get("/", tags=["Système"])
 async def root():
-    return {
-        "app": "PhysioAI Lab",
-        "docs": "/docs",
-        "health": "/health",
-    }
-
+    return {"app": "PhysioAI Lab", "status": "running", "version": "2.0.0"}
 
 # ── Lancement ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info",
+        host    = "0.0.0.0",
+        port    = port,
+        reload  = (ENVIRONMENT == "development"),
     )
