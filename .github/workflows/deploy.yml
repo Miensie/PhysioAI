@@ -78,9 +78,9 @@ jobs:
         run: |
           mkdir -p _site
           # Copier le frontend à la racine du site
-          cp -r frontend/scripts  _site/
-          cp -r frontend/styles   _site/
-          cp    frontend/taskpane.html _site/
+          cp -r scripts  _site/
+          cp -r styles   _site/
+          cp    taskpane.html _site/
           cp    manifest.xml      _site/
           cp -r docs              _site/
           # Créer la page d'accueil si absente
