@@ -39,7 +39,6 @@ jobs:
           cd backend
           python -m pytest tests/ -v --tb=short
         env:
-          # PYTHONPATH pointe vers backend/ pour que `from main import app` fonctionne
           PYTHONPATH: ${{ github.workspace }}/backend
 
   # ══════════════════════════════════════════════════════════════
@@ -79,7 +78,6 @@ jobs:
           cp    frontend/taskpane.html _site/
           cp    manifest.xml      _site/
           [ -d docs ] && cp -r docs _site/ || true
-          # Page d'accueil = taskpane par défaut si pas d'index.html
           [ -f index.html ] && cp index.html _site/ || cp frontend/taskpane.html _site/index.html
 
       - name: Setup Pages
@@ -96,14 +94,21 @@ jobs:
 
   # ══════════════════════════════════════════════════════════════
   # JOB 3 — Trigger redéploiement Render
+  # La condition sur le secret est dans le script shell,
+  # pas dans le if: du job (non supporté par GitHub Actions)
   # ══════════════════════════════════════════════════════════════
   deploy-backend:
     name: 🚀 Trigger Backend (Render)
     runs-on: ubuntu-latest
     needs: test-backend
-    if: ${{ secrets.RENDER_DEPLOY_HOOK != '' }}
     steps:
       - name: Trigger Render deploy
         run: |
-          curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
-          echo "✅ Déploiement Render déclenché"
+          if [ -n "$RENDER_HOOK" ]; then
+            curl -s -X POST "$RENDER_HOOK"
+            echo "✅ Déploiement Render déclenché"
+          else
+            echo "⏭️  RENDER_DEPLOY_HOOK non configuré — étape ignorée"
+          fi
+        env:
+          RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
