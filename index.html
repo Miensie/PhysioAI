@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>PhysioAI Lab — Modélisation physico-chimique + IA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23050D1A'/><text x='16' y='22' text-anchor='middle' font-size='16' fill='%2300FFB3'>⚗</text></svg>"/>
+  <style>
+    :root {
+      --bg:    #050D1A; --bg2: #091422; --bg3: #0E1D30;
+      --border:#152840; --border2:#1E3A58;
+      --green: #00FFB3; --green2:#00A676;
+      --cyan:  #00D4FF; --blue: #3B82F6;
+      --orange:#FF8C00; --purple:#B57FFF;
+      --text:  #C8DCF0; --dim:  #6B8DAA; --faint:#2A4060;
+      --mono:  'JetBrains Mono',monospace;
+      --sans:  'DM Sans',sans-serif;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{font-family:var(--sans);background:var(--bg);color:var(--text);overflow-x:hidden}
+
+    body::before{
+      content:'';position:fixed;inset:0;
+      background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+      background-size:40px 40px;opacity:.25;pointer-events:none;z-index:0;
+    }
+
+    /* NAV */
+    nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(5,13,26,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:54px}
+    .nav-brand{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--text)}
+    .nav-brand span{color:var(--green)}
+    .nav-links{display:flex;gap:26px;list-style:none}
+    .nav-links a{font-size:11px;font-weight:600;color:var(--dim);text-decoration:none;text-transform:uppercase;letter-spacing:.07em;transition:color .15s}
+    .nav-links a:hover{color:var(--green)}
+    .nav-cta{background:var(--green);color:var(--bg)!important;padding:7px 16px;border-radius:6px;font-weight:700!important}
+    .nav-cta:hover{box-shadow:0 0 16px rgba(0,255,179,.4)!important}
+
+    /* HERO */
+    .hero{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 24px 60px}
+    .badge{display:inline-flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:5px 14px;font-family:var(--mono);font-size:10px;color:var(--green);letter-spacing:.08em;text-transform:uppercase;margin-bottom:28px;animation:fadeUp .6s ease both}
+    .dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+    h1{font-size:clamp(40px,7vw,78px);font-weight:800;line-height:1.05;letter-spacing:-.03em;margin-bottom:10px;animation:fadeUp .7s .1s ease both}
+    h1 span{color:var(--green);text-shadow:0 0 40px rgba(0,255,179,.3)}
+    .sub{font-family:var(--mono);font-size:12px;color:var(--dim);letter-spacing:.05em;margin-bottom:18px;animation:fadeUp .7s .15s ease both}
+    .desc{max-width:560px;font-size:15px;color:var(--dim);line-height:1.7;margin-bottom:36px;animation:fadeUp .7s .2s ease both}
+    .btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;animation:fadeUp .7s .25s ease both}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:13px 28px;border-radius:8px;font-family:var(--sans);font-size:13px;font-weight:700;text-decoration:none;transition:all .15s}
+    .btn-p{background:var(--green);color:var(--bg)}
+    .btn-p:hover{box-shadow:0 0 24px rgba(0,255,179,.5);transform:translateY(-1px)}
+    .btn-s{background:transparent;color:var(--text);border:1px solid var(--border2)}
+    .btn-s:hover{border-color:var(--green2);color:var(--green);transform:translateY(-1px)}
+    .chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:48px;animation:fadeUp .7s .35s ease both}
+    .chip{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.05em;text-transform:uppercase}
+    .chip.hi{border-color:var(--green2);color:var(--green)}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+    /* SECTIONS */
+    section{position:relative;z-index:1;padding:80px 24px}
+    .container{max-width:1100px;margin:0 auto}
+    .sec-label{font-family:var(--mono);font-size:10px;color:var(--green2);letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px}
+    h2{font-size:clamp(26px,4vw,40px);font-weight:800;line-height:1.1;margin-bottom:14px}
+    .sec-desc{font-size:14px;color:var(--dim);line-height:1.7;max-width:560px;margin-bottom:48px}
+
+    /* FEATURES */
+    #features{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+    .features-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+    .feat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:22px;transition:border-color .2s,transform .2s}
+    .feat:hover{border-color:var(--green2);transform:translateY(-3px)}
+    .feat-ico{font-size:26px;margin-bottom:12px;display:block}
+    .feat-title{font-size:14px;font-weight:700;margin-bottom:8px}
+    .feat-desc{font-size:12px;color:var(--dim);line-height:1.6}
+    .feat-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+    .tag{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:9px;color:var(--dim)}
+    .tag.g{border-color:var(--green2);color:var(--green)}
+    .tag.c{border-color:#004466;color:var(--cyan)}
+    .tag.o{border-color:#442200;color:var(--orange)}
+    .tag.p{border-color:#2a0066;color:var(--purple)}
+
+    /* DEPLOY STEPS */
+    #deploy{}
+    .deploy-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:48px}
+    @media(max-width:680px){.deploy-grid{grid-template-columns:1fr}}
+    .deploy-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:22px}
+    .deploy-card-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--green);letter-spacing:.1em;text-transform:uppercase;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+    .step{display:flex;gap:10px;margin-bottom:14px;align-items:flex-start}
+    .step-n{font-family:var(--mono);font-size:10px;color:var(--green);background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;white-space:nowrap;margin-top:1px;flex-shrink:0}
+    .step strong{display:block;font-size:12px;color:var(--text);margin-bottom:3px}
+    .step span{font-size:11px;color:var(--dim);line-height:1.5}
+    pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:var(--mono);font-size:10px;color:var(--cyan);overflow-x:auto;margin:8px 0;line-height:1.7}
+    .cmd{color:var(--green)}
+    .cmt{color:var(--faint)}
+
+    /* ARCH */
+    #architecture{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+    .arch-table{width:100%;border-collapse:collapse;margin-top:32px;font-size:12px}
+    .arch-table th{background:var(--bg);color:var(--cyan);padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+    .arch-table td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--dim);vertical-align:top}
+    .arch-table td:first-child{color:var(--green);font-family:var(--mono);font-size:11px;font-weight:700}
+    .arch-table tr:hover td{background:var(--bg3);color:var(--text)}
+
+    /* CTA */
+    #cta{text-align:center;padding:100px 24px}
+    .cta-glow{position:absolute;width:400px;height:400px;background:radial-gradient(circle,rgba(0,255,179,.1),transparent 70%);left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
+
+    /* FOOTER */
+    footer{position:relative;z-index:1;background:var(--bg2);border-top:1px solid var(--border);padding:24px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+    .footer-brand{font-family:var(--mono);font-size:13px;font-weight:700}
+    .footer-brand span{color:var(--green)}
+    .footer-links{display:flex;gap:18px;list-style:none}
+    .footer-links a{font-size:11px;color:var(--dim);text-decoration:none}
+    .footer-links a:hover{color:var(--green)}
+    .footer-note{font-size:10px;color:var(--faint)}
+
+    @media(max-width:640px){nav{padding:0 16px}.nav-links{display:none}.btns{flex-direction:column;align-items:center}}
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">Physio<span>AI</span> Lab</div>
+  <ul class="nav-links">
+    <li><a href="#features">Fonctionnalités</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#deploy">Déploiement</a></li>
+    <li><a href="taskpane.html" class="nav-cta">⚗ Ouvrir l'Add-in</a></li>
+  </ul>
+</nav>
+
+<section class="hero">
+  <div class="badge"><span class="dot"></span>Excel Add-in · FastAPI · PyTorch · Open Source</div>
+  <h1>Modélisation physico-chimique<br><span>avec Deep Learning</span><br>dans Excel</h1>
+  <p class="sub">Cinétique · Diffusion · Réacteurs · Random Forest · MLP · Hybride IA+Physique</p>
+  <p class="desc">Plateforme professionnelle de modélisation industrielle. Calibration automatique des paramètres, réseau de neurones PyTorch, modèle hybride physique + IA — directement dans Microsoft Excel.</p>
+  <div class="btns">
+    <a href="taskpane.html" class="btn btn-p">⚗ Ouvrir l'Add-in</a>
+    <a href="https://github.com/VOTRE-USERNAME/physioai-lab" class="btn btn-s" target="_blank">⌥ GitHub</a>
+    <a href="#deploy" class="btn btn-s">📖 Guide déploiement</a>
+  </div>
+  <div class="chips">
+    <span class="chip hi">PCA / PLS</span>
+    <span class="chip hi">Cinétique ord. 0/1/2</span>
+    <span class="chip hi">Diffusion Fick</span>
+    <span class="chip hi">ODE RK45</span>
+    <span class="chip">Random Forest</span>
+    <span class="chip">SVR</span>
+    <span class="chip hi">MLP PyTorch</span>
+    <span class="chip hi">Hybride IA+Physique</span>
+    <span class="chip">CSTR / Batch</span>
+    <span class="chip">Newton cooling</span>
+    <span class="chip hi">AI Advisor</span>
+    <span class="chip">FastAPI</span>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <p class="sec-label">Capacités scientifiques</p>
+    <h2>Tout l'arsenal de la chimiométrie industrielle</h2>
+    <p class="sec-desc">Chaque module est documenté selon les références fondatrices. Calibration automatique par 3 méthodes d'optimisation.</p>
+    <div class="features-grid">
+      <div class="feat"><span class="feat-ico">∿</span><div class="feat-title">Modèles physiques</div><p class="feat-desc">Cinétique chimique (ord. 0, 1, 2), réacteur batch (ODE RK45), CSTR état stationnaire, diffusion Fick 1D, refroidissement de Newton.</p><div class="feat-tags"><span class="tag g">SciPy ODE</span><span class="tag">curve_fit</span></div></div>
+      <div class="feat"><span class="feat-ico">⚡</span><div class="feat-title">Deep Learning PyTorch</div><p class="feat-desc">MLP configurable, ResNet tabulaire, early stopping, modèle hybride Physique + NN résiduel. GPU supporté.</p><div class="feat-tags"><span class="tag p">PyTorch</span><span class="tag">ResNet</span><span class="tag">Hybride</span></div></div>
+      <div class="feat"><span class="feat-ico">✦</span><div class="feat-title">Machine Learning</div><p class="feat-desc">Random Forest (OOB, feature importance), SVR (rbf/linear/poly), Gradient Boosting, K-Means++, DBSCAN.</p><div class="feat-tags"><span class="tag c">scikit-learn</span><span class="tag">CV K-Fold</span></div></div>
+      <div class="feat"><span class="feat-ico">⚙</span><div class="feat-title">Optimisation paramètres</div><p class="feat-desc">Calibration automatique : Levenberg-Marquardt, Nelder-Mead, Évolution différentielle. Auto-sélection du meilleur modèle.</p><div class="feat-tags"><span class="tag o">3 méthodes</span><span class="tag">SciPy optimize</span></div></div>
+      <div class="feat"><span class="feat-ico">🧠</span><div class="feat-title">AI Advisor</div><p class="feat-desc">Analyse automatique des données : détection de linéarité, bruit, outliers. Recommandation pondérée par type de modèle.</p><div class="feat-tags"><span class="tag g">Automatique</span><span class="tag">Confiance %</span></div></div>
+      <div class="feat"><span class="feat-ico">⊞</span><div class="feat-title">Intégration Excel native</div><p class="feat-desc">Office.js : lecture de sélection, import CSV, export résultats, graphiques Chart.js, rapport HTML scientifique.</p><div class="feat-tags"><span class="tag c">Office.js</span><span class="tag">Chart.js</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="container">
+    <p class="sec-label">Architecture technique</p>
+    <h2>Stack professionnel, scalable SaaS</h2>
+    <p class="sec-desc">Frontend statique sur GitHub Pages. Backend Python sur Render/Railway/VPS. Communication REST.</p>
+    <table class="arch-table">
+      <thead><tr><th>Couche</th><th>Technologie</th><th>Hébergement</th><th>Endpoint</th></tr></thead>
+      <tbody>
+        <tr><td>Frontend</td><td>HTML · CSS · JS · Office.js · Chart.js</td><td>GitHub Pages (gratuit)</td><td>https://username.github.io/physioai-lab</td></tr>
+        <tr><td>API REST</td><td>FastAPI · Pydantic v2 · Uvicorn</td><td>Render / Railway / Fly.io</td><td>https://physioai-backend.onrender.com</td></tr>
+        <tr><td>ML Engine</td><td>scikit-learn · scipy · numpy · pandas</td><td>Backend (même process)</td><td>/train_ai/ml · /optimize</td></tr>
+        <tr><td>DL Engine</td><td>PyTorch (CPU/GPU)</td><td>Backend (même process)</td><td>/train_ai/dl</td></tr>
+        <tr><td>Manifest</td><td>Office Add-in XML</td><td>GitHub Pages</td><td>/manifest.xml</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- DEPLOY -->
+<section id="deploy">
+  <div class="container">
+    <p class="sec-label">Guide de déploiement</p>
+    <h2>En ligne en moins de 30 minutes</h2>
+    <p class="sec-desc">GitHub Pages pour le frontend (gratuit), Render.com pour le backend Python (gratuit).</p>
+
+    <div class="deploy-grid">
+      <!-- Frontend -->
+      <div class="deploy-card">
+        <div class="deploy-card-title">🌐 GitHub Pages — Frontend</div>
+        <div class="step"><span class="step-n">01</span><div><strong>Créer le dépôt</strong><span>Sur github.com/new → nommer <code>physioai-lab</code> → Public</span></div></div>
+        <div class="step"><span class="step-n">02</span><div><strong>Pousser les fichiers</strong>
+          <pre><span class="cmd">git init && git add .</span>
+<span class="cmd">git commit -m "feat: PhysioAI Lab v2"</span>
+<span class="cmd">git remote add origin https://github.com/</span>
+<span class="cmd">  VOTRE-USERNAME/physioai-lab.git</span>
+<span class="cmd">git push -u origin main</span></pre>
+        </div></div>
+        <div class="step"><span class="step-n">03</span><div><strong>Activer GitHub Pages</strong><span>Settings → Pages → Branch: main / root → Save<br>→ Disponible sur <code>https://USERNAME.github.io/physioai-lab</code></span></div></div>
+        <div class="step"><span class="step-n">04</span><div><strong>Configurer les secrets CI</strong><span>Settings → Secrets → Actions → New secret :<br><code>BACKEND_URL</code> = URL de votre backend Render</span></div></div>
+      </div>
+
+      <!-- Backend -->
+      <div class="deploy-card">
+        <div class="deploy-card-title">🚀 Render.com — Backend Python</div>
+        <div class="step"><span class="step-n">01</span><div><strong>Créer un compte gratuit</strong><span>Sur <strong>render.com</strong> → Dashboard → New Web Service</span></div></div>
+        <div class="step"><span class="step-n">02</span><div><strong>Connecter le dépôt GitHub</strong><span>Sélectionner votre repo <code>physioai-lab</code> → Root Directory : <code>backend</code></span></div></div>
+        <div class="step"><span class="step-n">03</span><div><strong>Configurer le service</strong>
+          <pre><span class="cmt">Build Command :</span>
+<span class="cmd">pip install -r requirements.txt</span>
+
+<span class="cmt">Start Command :</span>
+<span class="cmd">uvicorn main:app --host 0.0.0.0 --port $PORT</span></pre>
+        </div></div>
+        <div class="step"><span class="step-n">04</span><div><strong>Variables d'environnement</strong>
+          <pre><span class="cmt">Environment Variables :</span>
+ENVIRONMENT   = production
+FRONTEND_URL  = https://USERNAME.github.io/physioai-lab</pre>
+        </div></div>
+        <div class="step"><span class="step-n">05</span><div><strong>Récupérer le Deploy Hook</strong><span>Settings → Deploy Hooks → Copier l'URL → Ajouter en secret GitHub : <code>RENDER_DEPLOY_HOOK</code></span></div></div>
+      </div>
+
+      <!-- Excel -->
+      <div class="deploy-card">
+        <div class="deploy-card-title">⊞ Chargement dans Excel</div>
+        <div class="step"><span class="step-n">01</span><div><strong>Mettre à jour manifest.xml</strong><span>Remplacer <code>localhost:3000</code> par votre URL GitHub Pages dans <code>manifest.xml</code></span></div></div>
+        <div class="step"><span class="step-n">02</span><div><strong>Excel Desktop</strong><span>Insérer → Compléments → Mes compléments → Télécharger → Sélectionner <code>manifest.xml</code></span></div></div>
+        <div class="step"><span class="step-n">03</span><div><strong>Excel Online</strong><span>Insérer → Compléments Office → Charger mon complément → <code>manifest.xml</code></span></div></div>
+        <div class="step"><span class="step-n">04</span><div><strong>Configurer l'URL backend</strong><span>Dans l'Add-in : champ URL en haut → saisir l'URL Render → le statut devient vert ●</span></div></div>
+      </div>
+
+      <!-- VPS -->
+      <div class="deploy-card">
+        <div class="deploy-card-title">🖥️ Alternative — VPS avec Docker</div>
+        <div class="step"><span class="step-n">01</span><div><strong>Installer Docker sur le VPS</strong>
+          <pre><span class="cmd">curl -fsSL https://get.docker.com | sh</span></pre>
+        </div></div>
+        <div class="step"><span class="step-n">02</span><div><strong>Build et lancement</strong>
+          <pre><span class="cmd">docker build -t physioai-backend .</span>
+<span class="cmd">docker run -d \
+  -p 8000:8000 \
+  -e ENVIRONMENT=production \
+  -e FRONTEND_URL=https://... \
+  --name physioai \
+  physioai-backend</span></pre>
+        </div></div>
+        <div class="step"><span class="step-n">03</span><div><strong>HTTPS avec Nginx + Let's Encrypt</strong>
+          <pre><span class="cmd">apt install nginx certbot</span>
+<span class="cmd">certbot --nginx -d api.votre-domaine.com</span></pre>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta" style="position:relative">
+  <div class="cta-glow"></div>
+  <div class="container" style="position:relative;z-index:1;text-align:center">
+    <p class="sec-label" style="text-align:center">Prêt à commencer ?</p>
+    <h2>Déployez PhysioAI Lab<br>en 30 minutes</h2>
+    <p style="max-width:480px;margin:0 auto 32px;font-size:14px;color:var(--dim);line-height:1.7">Frontend sur GitHub Pages (gratuit), backend sur Render (gratuit), utilisable depuis Excel Desktop et Excel Online.</p>
+    <div class="btns" style="justify-content:center">
+      <a href="taskpane.html" class="btn btn-p">⚗ Ouvrir l'Add-in</a>
+      <a href="https://github.com/VOTRE-USERNAME/physioai-lab" class="btn btn-s" target="_blank">⌥ Voir le code</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-brand">Physio<span>AI</span> Lab</div>
+  <ul class="footer-links">
+    <li><a href="taskpane.html">Add-in</a></li>
+    <li><a href="manifest.xml">Manifest</a></li>
+    <li><a href="https://github.com/VOTRE-USERNAME/physioai-lab" target="_blank">GitHub</a></li>
+    <li><a href="https://physioai-backend.onrender.com/docs" target="_blank">API Docs</a></li>
+  </ul>
+  <div class="footer-note">FastAPI · PyTorch · scikit-learn · Office.js · Chart.js</div>
+</footer>
+
+</body>
+</html>

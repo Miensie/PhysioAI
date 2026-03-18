@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>PhysioAI Lab</title>
+
+  <!-- Office.js -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Favicon inline -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23050D1A'/><text x='16' y='22' text-anchor='middle' font-size='16' fill='%2300FFB3'>⚗</text></svg>"/>
+  <link rel="stylesheet" href="styles/app.css"/>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════════════════════ -->
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-icon">⚗</span>
+    <div>
+      <div class="brand-name">Physio<span class="accent">AI</span> Lab</div>
+      <div class="brand-sub">Modélisation physico-chimique + IA</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="api-status" class="api-status offline" title="Statut du backend">●</div>
+    <input type="text" id="api-url" value="http://localhost:8000" class="api-url-input" placeholder="http://localhost:8000"/>
+  </div>
+</header>
+
+<!-- ═══ NAVIGATION ═══════════════════════════════════════════════════════════ -->
+<nav class="nav">
+  <button class="ntab active" data-panel="p-data">
+    <span class="ni">⊞</span><span>Données</span>
+  </button>
+  <button class="ntab" data-panel="p-analyze">
+    <span class="ni">◎</span><span>Analyser</span>
+  </button>
+  <button class="ntab" data-panel="p-model">
+    <span class="ni">∿</span><span>Modèles</span>
+  </button>
+  <button class="ntab" data-panel="p-simulate">
+    <span class="ni">▷</span><span>Simuler</span>
+  </button>
+  <button class="ntab" data-panel="p-ai">
+    <span class="ni">✦</span><span>IA/DL</span>
+  </button>
+  <button class="ntab" data-panel="p-report">
+    <span class="ni">▤</span><span>Rapport</span>
+  </button>
+</nav>
+
+<main class="main">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANEL : DONNÉES
+═══════════════════════════════════════════════════════════════════════════════ -->
+<section id="p-data" class="panel active">
+  <div class="ph">
+    <h2>📊 Importation des données</h2>
+    <p class="ps">Sélectionnez vos données depuis Excel ou importez un fichier CSV.</p>
+  </div>
+
+  <div class="card">
+    <div class="cl">SOURCE</div>
+    <div class="source-grid">
+      <button class="btn btn-primary" id="btn-read-excel">⊞ Lire la sélection Excel</button>
+      <label class="btn btn-sec">
+        ↑ Importer CSV
+        <input type="file" id="csv-file" accept=".csv" style="display:none"/>
+      </label>
+    </div>
+    <div class="form-row mt8">
+      <div class="ff">
+        <label>En-tête</label>
+        <select id="has-header" class="sel">
+          <option value="1">Ligne 1</option>
+          <option value="0">Aucune</option>
+        </select>
+      </div>
+      <div class="ff">
+        <label>Séparateur CSV</label>
+        <select id="csv-sep" class="sel">
+          <option value=",">Virgule</option>
+          <option value=";">Point-virgule</option>
+          <option value="\t">Tabulation</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="preview-card" style="display:none">
+    <div class="cl">APERÇU — <span id="data-shape">0 × 0</span></div>
+    <div class="tscroll">
+      <table class="dt" id="preview-table">
+        <thead id="preview-thead"></thead>
+        <tbody id="preview-tbody"></tbody>
+      </table>
+    </div>
+    <div id="data-info" class="data-info-row"></div>
+  </div>
+
+  <div class="card" id="col-assign-card" style="display:none">
+    <div class="cl">ASSIGNATION DES COLONNES</div>
+    <div class="form-row">
+      <div class="ff">
+        <label>Variable X (temps / espace)</label>
+        <select id="col-x" class="sel"></select>
+      </div>
+      <div class="ff">
+        <label>Variable Y (cible / réponse)</label>
+        <select id="col-y" class="sel"></select>
+      </div>
+    </div>
+    <button class="btn btn-primary mt8" id="btn-confirm-cols">✓ Confirmer la sélection</button>
+  </div>
+
+  <div id="log-data" class="logp"></div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANEL : ANALYSER
+═══════════════════════════════════════════════════════════════════════════════ -->
+<section id="p-analyze" class="panel">
+  <div class="ph">
+    <h2>🔬 Analyse des données</h2>
+    <p class="ps">Statistiques descriptives, corrélations et recommandation IA.</p>
+  </div>
+
+  <div class="card">
+    <div class="cl">ACTIONS</div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-stats">📊 Statistiques descriptives</button>
+      <button class="btn btn-sec"     id="btn-corr">🔗 Corrélations</button>
+      <button class="btn btn-accent"  id="btn-recommend">✦ Conseil IA</button>
+    </div>
+    <div class="ff mt8">
+      <label>Domaine scientifique</label>
+      <select id="domain-sel" class="sel">
+        <option value="auto">Automatique</option>
+        <option value="chemistry">Chimie</option>
+        <option value="physics">Physique</option>
+        <option value="process">Génie des procédés</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card" id="stats-card" style="display:none">
+    <div class="cl">STATISTIQUES DESCRIPTIVES</div>
+    <div class="tscroll" id="stats-table-wrap"></div>
+  </div>
+
+  <div class="card" id="corr-card" style="display:none">
+    <div class="cl">CORRÉLATIONS (PEARSON)</div>
+    <div class="tscroll" id="corr-table-wrap"></div>
+    <div class="chart-wrap mt8" style="height:260px">
+      <canvas id="corr-chart"></canvas>
+    </div>
+  </div>
+
+  <div class="card" id="recommend-card" style="display:none">
+    <div class="cl">RECOMMANDATION IA</div>
+    <div id="recommend-content"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANEL : MODÈLES
+═══════════════════════════════════════════════════════════════════════════════ -->
+<section id="p-model" class="panel">
+  <div class="ph">
+    <h2>∿ Modélisation</h2>
+    <p class="ps">Régression statistique et modèles physico-chimiques.</p>
+  </div>
+
+  <!-- Tabs internes -->
+  <div class="inner-tabs">
+    <button class="itab active" data-itab="regression">Régression</button>
+    <button class="itab" data-itab="physics">Physique</button>
+    <button class="itab" data-itab="optimize">Optimiser</button>
+  </div>
+
+  <!-- Régression -->
+  <div id="itab-regression" class="itab-panel active">
+    <div class="card">
+      <div class="cl">PARAMÈTRES DE RÉGRESSION</div>
+      <div class="form-row">
+        <div class="ff">
+          <label>Type</label>
+          <select id="reg-type" class="sel">
+            <option value="linear">Linéaire</option>
+            <option value="polynomial">Polynomiale</option>
+            <option value="ridge">Ridge</option>
+            <option value="lasso">Lasso</option>
+          </select>
+        </div>
+        <div class="ff" id="reg-degree-wrap">
+          <label>Degré</label>
+          <input type="number" id="reg-degree" value="2" min="1" max="10" class="inp"/>
+        </div>
+        <div class="ff" id="reg-alpha-wrap" style="display:none">
+          <label>Alpha (λ)</label>
+          <input type="number" id="reg-alpha" value="1.0" min="0.001" step="0.1" class="inp"/>
+        </div>
+      </div>
+      <button class="btn btn-primary mt8" id="btn-run-regression">∿ Lancer la régression</button>
+    </div>
+
+    <div class="card" id="reg-results-card" style="display:none">
+      <div class="cl">RÉSULTATS</div>
+      <div class="stat-grid" id="reg-metrics"></div>
+      <div class="chart-wrap mt8" style="height:280px">
+        <canvas id="reg-chart"></canvas>
+      </div>
+      <button class="btn btn-sec mt8" id="btn-reg-to-excel">⊞ Exporter vers Excel</button>
+    </div>
+  </div>
+
+  <!-- Physique -->
+  <div id="itab-physics" class="itab-panel">
+    <div class="card">
+      <div class="cl">MODÈLE PHYSIQUE</div>
+      <div class="form-row">
+        <div class="ff">
+          <label>Modèle</label>
+          <select id="phys-model" class="sel" id="phys-model-sel">
+            <option value="kinetics">Cinétique chimique</option>
+            <option value="batch_reactor">Réacteur batch</option>
+            <option value="cstr">CSTR (état stationnaire)</option>
+            <option value="diffusion">Diffusion (Fick 1D)</option>
+            <option value="cooling">Refroidissement Newton</option>
+          </select>
+        </div>
+      </div>
+      <!-- Paramètres cinétique -->
+      <div id="kinetics-params" class="params-group">
+        <div class="form-row mt8">
+          <div class="ff"><label>Ordre (0, 1, 2)</label><input type="number" id="k-order" value="1" min="0" max="2" class="inp"/></div>
+          <div class="ff"><label>C₀ (init)</label><input type="number" id="k-c0" value="1.0" step="0.01" class="inp"/></div>
+          <div class="ff"><label>k (vitesse)</label><input type="number" id="k-k" value="0.1" step="0.001" class="inp"/></div>
+        </div>
+      </div>
+      <!-- Paramètres diffusion -->
+      <div id="diffusion-params" class="params-group" style="display:none">
+        <div class="form-row mt8">
+          <div class="ff"><label>D (m²/s)</label><input type="number" id="d-D" value="1e-9" step="1e-10" class="inp"/></div>
+          <div class="ff"><label>C_surface</label><input type="number" id="d-cs" value="1.0" class="inp"/></div>
+          <div class="ff"><label>x_max (m)</label><input type="number" id="d-xmax" value="0.001" class="inp"/></div>
+        </div>
+      </div>
+      <!-- Paramètres refroidissement -->
+      <div id="cooling-params" class="params-group" style="display:none">
+        <div class="form-row mt8">
+          <div class="ff"><label>T₀ (°C)</label><input type="number" id="c-T0" value="100" class="inp"/></div>
+          <div class="ff"><label>T_env (°C)</label><input type="number" id="c-Tenv" value="20" class="inp"/></div>
+          <div class="ff"><label>h (W/K)</label><input type="number" id="c-h" value="0.05" step="0.001" class="inp"/></div>
+        </div>
+      </div>
+      <div class="form-row mt8">
+        <div class="ff"><label>t_end</label><input type="number" id="p-tend" value="100" class="inp"/></div>
+        <div class="ff"><label>Calibration auto</label>
+          <select id="p-calibrate" class="sel">
+            <option value="1">Oui (si données chargées)</option>
+            <option value="0">Non (simulation pure)</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary mt8" id="btn-run-physics">⚙ Calculer</button>
+    </div>
+
+    <div class="card" id="phys-results-card" style="display:none">
+      <div class="cl">RÉSULTATS DU MODÈLE PHYSIQUE</div>
+      <div class="stat-grid" id="phys-metrics"></div>
+      <div class="chart-wrap mt8" style="height:280px">
+        <canvas id="phys-chart"></canvas>
+      </div>
+      <button class="btn btn-sec mt8" id="btn-phys-to-excel">⊞ Exporter vers Excel</button>
+    </div>
+  </div>
+
+  <!-- Optimiser -->
+  <div id="itab-optimize" class="itab-panel">
+    <div class="card">
+      <div class="cl">CALIBRATION AUTOMATIQUE DES PARAMÈTRES</div>
+      <div class="form-row">
+        <div class="ff">
+          <label>Méthode d'optimisation</label>
+          <select id="opt-method" class="sel">
+            <option value="curve_fit">curve_fit (LM — rapide)</option>
+            <option value="nelder_mead">Nelder-Mead (robuste)</option>
+            <option value="differential_evolution">Évolution différentielle (global)</option>
+          </select>
+        </div>
+        <div class="ff">
+          <label>Modèle à calibrer</label>
+          <select id="opt-model" class="sel">
+            <option value="kinetics_order1">Cinétique ordre 1</option>
+            <option value="kinetics_order0">Cinétique ordre 0</option>
+            <option value="kinetics_order2">Cinétique ordre 2</option>
+            <option value="cooling">Refroidissement Newton</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary mt8" id="btn-run-optimize">⚡ Calibrer</button>
+      <button class="btn btn-sec mt4"    id="btn-auto-optimize">🔁 Auto-sélection meilleur modèle</button>
+    </div>
+
+    <div class="card" id="opt-results-card" style="display:none">
+      <div class="cl">RÉSULTATS D'OPTIMISATION</div>
+      <div id="opt-params-display"></div>
+      <div class="chart-wrap mt8" style="height:260px">
+        <canvas id="opt-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANEL : SIMULATION
+═══════════════════════════════════════════════════════════════════════════════ -->
+<section id="p-simulate" class="panel">
+  <div class="ph">
+    <h2>▷ Simulation</h2>
+    <p class="ps">Évolution temporelle et comparaison modèle vs données.</p>
+  </div>
+
+  <div class="card">
+    <div class="cl">CONFIGURATION DE SIMULATION</div>
+    <div class="form-row">
+      <div class="ff">
+        <label>Modèle</label>
+        <select id="sim-model" class="sel">
+          <option value="kinetics">Cinétique</option>
+          <option value="batch_reactor">Réacteur batch</option>
+          <option value="cstr">CSTR</option>
+          <option value="diffusion">Diffusion</option>
+          <option value="cooling">Refroidissement</option>
+        </select>
+      </div>
+      <div class="ff"><label>t_start</label><input type="number" id="sim-tstart" value="0" class="inp"/></div>
+      <div class="ff"><label>t_end</label><input type="number" id="sim-tend" value="100" class="inp"/></div>
+      <div class="ff"><label>Points</label><input type="number" id="sim-npts" value="300" class="inp"/></div>
+    </div>
+    <div class="form-row mt8" id="sim-params-row">
+      <div class="ff"><label>C₀ / T₀</label><input type="number" id="sim-c0" value="1.0" class="inp"/></div>
+      <div class="ff"><label>k</label><input type="number" id="sim-k" value="0.3" step="0.01" class="inp"/></div>
+      <div class="ff"><label>Ordre</label><input type="number" id="sim-order" value="1" min="0" max="2" class="inp"/></div>
+    </div>
+    <div class="form-row mt8">
+      <div class="ff">
+        <label>Comparer avec données chargées</label>
+        <select id="sim-compare" class="sel">
+          <option value="1">Oui</option>
+          <option value="0">Non</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary mt8" id="btn-run-sim">▶ Lancer la simulation</button>
+  </div>
+
+  <div class="card" id="sim-results-card" style="display:none">
+    <div class="cl">RÉSULTAT DE SIMULATION</div>
+    <div class="chart-wrap" style="height:320px">
+      <canvas id="sim-chart"></canvas>
+    </div>
+    <div class="stat-grid mt8" id="sim-metrics"></div>
+    <button class="btn btn-sec mt8" id="btn-sim-to-excel">⊞ Exporter la simulation</button>
+  </div>
+
+  <!-- Simulation multi-paramètres -->
+  <div class="card">
+    <div class="cl">SIMULATION COMPARATIVE (MULTI-PARAMÈTRES)</div>
+    <p class="cn">Compare plusieurs valeurs de k sur le même graphique.</p>
+    <div class="form-row">
+      <div class="ff"><label>Valeurs de k (séparées par ;)</label>
+        <input type="text" id="sim-multi-k" value="0.1;0.3;0.5;1.0" class="inp"/>
+      </div>
+      <div class="ff"><label>C₀</label><input type="number" id="sim-multi-c0" value="1.0" class="inp"/></div>
+    </div>
+    <button class="btn btn-sec mt8" id="btn-run-sim-multi">▶▶ Simulation comparative</button>
+    <div class="chart-wrap mt8" style="height:280px" id="sim-multi-wrap" style="display:none">
+      <canvas id="sim-multi-chart"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANEL : IA / DL
+═══════════════════════════════════════════════════════════════════════════════ -->
+<section id="p-ai" class="panel">
+  <div class="ph">
+    <h2>✦ Intelligence Artificielle</h2>
+    <p class="ps">Machine Learning avancé et Deep Learning (PyTorch).</p>
+  </div>
+
+  <div class="inner-tabs">
+    <button class="itab active" data-itab="ml">Machine Learning</button>
+    <button class="itab" data-itab="dl">Deep Learning</button>
+    <button class="itab" data-itab="hybrid">Hybride</button>
+  </div>
+
+  <!-- ML -->
+  <div id="itab-ml" class="itab-panel active">
+    <div class="card">
+      <div class="cl">MODÈLE ML</div>
+      <div class="form-row">
+        <div class="ff">
+          <label>Algorithme</label>
+          <select id="ml-model" class="sel">
+            <option value="random_forest">Random Forest</option>
+            <option value="svr">SVR (RBF)</option>
+            <option value="gradient_boosting">Gradient Boosting</option>
+            <option value="kmeans">K-Means (clustering)</option>
+          </select>
+        </div>
+        <div class="ff" id="ml-n-est-wrap">
+          <label>Estimateurs</label>
+          <input type="number" id="ml-n-est" value="100" min="10" max="500" class="inp"/>
+        </div>
+        <div class="ff" id="ml-k-wrap" style="display:none">
+          <label>Clusters k (auto si vide)</label>
+          <input type="number" id="ml-k" value="" class="inp" placeholder="auto"/>
+        </div>
+        <div class="ff">
+          <label>Folds CV</label>
+          <input type="number" id="ml-cv" value="5" min="2" max="20" class="inp"/>
+        </div>
+      </div>
+      <button class="btn btn-primary mt8" id="btn-run-ml">✦ Entraîner</button>
+    </div>
+
+    <div class="card" id="ml-results-card" style="display:none">
+      <div class="cl">RÉSULTATS ML</div>
+      <div class="stat-grid" id="ml-metrics"></div>
+      <div class="chart-wrap mt8" style="height:280px">
+        <canvas id="ml-chart"></canvas>
+      </div>
+      <div class="chart-wrap mt8" style="height:200px" id="feat-imp-wrap">
+        <canvas id="feat-imp-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- DL -->
+  <div id="itab-dl" class="itab-panel">
+    <div class="card">
+      <div class="cl">RÉSEAU DE NEURONES (PyTorch)</div>
+      <div class="form-row">
+        <div class="ff">
+          <label>Architecture</label>
+          <select id="dl-arch" class="sel">
+            <option value="mlp">MLP</option>
+            <option value="resnet">ResNet</option>
+          </select>
+        </div>
+        <div class="ff">
+          <label>Couches cachées (ex: 64,32)</label>
+          <input type="text" id="dl-hidden" value="64,32" class="inp"/>
+        </div>
+        <div class="ff">
+          <label>Activation</label>
+          <select id="dl-act" class="sel">
+            <option value="relu">ReLU</option>
+            <option value="tanh">Tanh</option>
+            <option value="silu">SiLU</option>
+            <option value="gelu">GELU</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row mt8">
+        <div class="ff"><label>Epochs</label><input type="number" id="dl-epochs" value="300" class="inp"/></div>
+        <div class="ff"><label>LR</label><input type="number" id="dl-lr" value="0.001" step="0.0001" class="inp"/></div>
+        <div class="ff"><label>Dropout</label><input type="number" id="dl-dropout" value="0.1" min="0" max="0.9" step="0.05" class="inp"/></div>
+        <div class="ff"><label>Patience (early stop)</label><input type="number" id="dl-patience" value="50" class="inp"/></div>
+      </div>
+      <button class="btn btn-primary mt8" id="btn-run-dl">⚡ Entraîner le réseau</button>
+    </div>
+
+    <div class="card" id="dl-results-card" style="display:none">
+      <div class="cl">RÉSULTATS DEEP LEARNING</div>
+      <div class="stat-grid" id="dl-metrics"></div>
+      <div class="chart-wrap mt8" style="height:260px">
+        <canvas id="dl-pred-chart"></canvas>
+      </div>
+      <div class="chart-wrap mt8" style="height:200px">
+        <canvas id="dl-loss-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hybride -->
+  <div id="itab-hybrid" class="itab-panel">
+    <div class="card">
+      <div class="cl">MODÈLE HYBRIDE — Physique + IA</div>
+      <p class="cn">Le réseau de neurones apprend les résidus non capturés par le modèle physique.</p>
+      <div class="form-row">
+        <div class="ff">
+          <label>Modèle physique de base</label>
+          <select id="hyb-physics" class="sel">
+            <option value="kinetics">Cinétique ordre 1</option>
+          </select>
+        </div>
+        <div class="ff"><label>C₀</label><input type="number" id="hyb-c0" value="1.0" class="inp"/></div>
+        <div class="ff"><label>k estimé</label><input type="number" id="hyb-k" value="0.1" step="0.01" class="inp"/></div>
+      </div>
+      <div class="form-row mt8">
+        <div class="ff">
+          <label>Couches NN résiduel</label>
+          <input type="text" id="hyb-hidden" value="32,16" class="inp"/>
+        </div>
+        <div class="ff"><label>Epochs</label><input type="number" id="hyb-epochs" value="200" class="inp"/></div>
+      </div>
+      <button class="btn btn-primary mt8" id="btn-run-hybrid">⚗ Entraîner modèle hybride</button>
+    </div>
+
+    <div class="card" id="hyb-results-card" style="display:none">
+      <div class="cl">RÉSULTATS HYBRIDES</div>
+      <div class="stat-grid" id="hyb-metrics"></div>
+      <div class="chart-wrap mt8" style="height:300px">
+        <canvas id="hyb-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANEL : RAPPORT
+═══════════════════════════════════════════════════════════════════════════════ -->
+<section id="p-report" class="panel">
+  <div class="ph">
+    <h2>▤ Rapport scientifique</h2>
+    <p class="ps">Génère un rapport complet avec graphiques, paramètres et interprétations.</p>
+  </div>
+
+  <div class="card">
+    <div class="cl">EN-TÊTE</div>
+    <div class="form-row">
+      <div class="ff"><label>Titre du projet</label><input type="text" id="rpt-title" value="Analyse PhysioAI Lab" class="inp"/></div>
+      <div class="ff"><label>Auteur</label><input type="text" id="rpt-author" class="inp" placeholder="Nom Prénom"/></div>
+    </div>
+    <div class="form-row mt8">
+      <div class="ff"><label>Organisation</label><input type="text" id="rpt-org" class="inp" placeholder="Laboratoire / Entreprise"/></div>
+      <div class="ff"><label>Référence</label><input type="text" id="rpt-ref" class="inp" placeholder="REF-2025-001"/></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cl">SECTIONS À INCLURE</div>
+    <div class="cb-list">
+      <label class="cbrow"><input type="checkbox" id="rpt-stats" checked/> Statistiques descriptives</label>
+      <label class="cbrow"><input type="checkbox" id="rpt-corr"  checked/> Corrélations</label>
+      <label class="cbrow"><input type="checkbox" id="rpt-model" checked/> Modèle physique/régression</label>
+      <label class="cbrow"><input type="checkbox" id="rpt-sim"   checked/> Simulation</label>
+      <label class="cbrow"><input type="checkbox" id="rpt-ai-sec" checked/> Résultats IA/ML</label>
+      <label class="cbrow"><input type="checkbox" id="rpt-rec"   checked/> Recommandation IA</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cl">EXPORT</div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-gen-report">📄 Générer rapport HTML</button>
+      <button class="btn btn-sec"     id="btn-export-excel">⊞ Exporter tout vers Excel</button>
+    </div>
+  </div>
+
+  <div id="log-report" class="logp"></div>
+</section>
+
+</main>
+
+<!-- Toasts -->
+<div id="toast-ct"></div>
+
+<!-- Scripts -->
+<script src="scripts/api.js"></script>
+<script src="scripts/charts.js"></script>
+<script src="scripts/excel.js"></script>
+<script src="scripts/app.js"></script>
+
+</body>
+</html>

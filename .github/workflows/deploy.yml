@@ -1,0 +1,111 @@
+name: Deploy PhysioAI Lab
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # ══════════════════════════════════════════════════════════════
+  # JOB 1 — Tests backend avant déploiement
+  # ══════════════════════════════════════════════════════════════
+  test-backend:
+    name: 🧪 Tests Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+
+      - name: Run tests
+        run: |
+          cd backend
+          pytest tests/ -v --tb=short --ignore=tests/test_torch_heavy.py
+        env:
+          PYTHONPATH: .
+
+  # ══════════════════════════════════════════════════════════════
+  # JOB 2 — Deploy frontend → GitHub Pages
+  # ══════════════════════════════════════════════════════════════
+  deploy-frontend:
+    name: 🌐 Deploy GitHub Pages
+    runs-on: ubuntu-latest
+    needs: test-backend
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject backend URL into api.js
+        run: |
+          # Remplace l'URL localhost par l'URL du backend en production
+          BACKEND_URL="${{ secrets.BACKEND_URL }}"
+          if [ -n "$BACKEND_URL" ]; then
+            sed -i "s|http://localhost:8000|${BACKEND_URL}|g" frontend/scripts/api.js
+            echo "✅ Backend URL injectée : $BACKEND_URL"
+          else
+            echo "⚠️  BACKEND_URL non défini, localhost conservé"
+          fi
+
+      - name: Inject backend URL into manifest.xml
+        run: |
+          PAGES_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          sed -i "s|https://localhost:3000|${PAGES_URL}|g" manifest.xml
+          echo "✅ manifest.xml mis à jour : $PAGES_URL"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Prepare GitHub Pages content
+        run: |
+          mkdir -p _site
+          # Copier le frontend à la racine du site
+          cp -r frontend/scripts  _site/
+          cp -r frontend/styles   _site/
+          cp    frontend/taskpane.html _site/
+          cp    manifest.xml      _site/
+          cp -r docs              _site/
+          # Créer la page d'accueil si absente
+          if [ ! -f _site/index.html ]; then
+            cp _site/taskpane.html _site/index.html
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ══════════════════════════════════════════════════════════════
+  # JOB 3 — Déclencher le re-deploy du backend (Render webhook)
+  # ══════════════════════════════════════════════════════════════
+  deploy-backend:
+    name: 🚀 Trigger Backend Deploy
+    runs-on: ubuntu-latest
+    needs: test-backend
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+          echo "✅ Déploiement Render déclenché"
