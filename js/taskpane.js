@@ -8,8 +8,11 @@
  *   - Affichage des résultats
  */
 
-// URL dynamique selon l'environnement (config.js)
-const API_BASE = (window.PHYSIOAI_CONFIG?.API_BASE_URL || "http://localhost:8000") + "/api/v1";
+// ── Configuration API ──────────────────────────────────────────────────────
+// Modifier RENDER_API_URL avec votre URL backend Render après déploiement
+const RENDER_API_URL = "https://physioai-lab-api.onrender.com";
+const _isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const API_BASE = (_isLocal ? "http://localhost:8000" : RENDER_API_URL) + "/api/v1";
 
 // ── État global ──────────────────────────────────────────────────────────────
 let state = {
@@ -65,7 +68,7 @@ function setupTabs() {
 
 // ── Boutons ──────────────────────────────────────────────────────────────────
 function setupButtons() {
-  document.getElementById("btnReadRange").addEventListener("click", readExcelRange);
+  document.getElementById("btnReadRange").addEventListener("click", () => readExcelRange("rangeInput"));
   document.getElementById("btnAnalyze").addEventListener("click", runRegression);
   document.getElementById("btnStats").addEventListener("click", runStats);
   document.getElementById("btnSimulate").addEventListener("click", runPhysical);
@@ -84,7 +87,11 @@ function setupButtons() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function readExcelRange(inputId = "rangeInput") {
-  const rangeAddr = document.getElementById(inputId).value.trim();
+  // Guard : s'assurer qu'on a bien un string (pas un MouseEvent)
+  if (typeof inputId !== "string") inputId = "rangeInput";
+  const el = document.getElementById(inputId);
+  if (!el) { showToast("Élément introuvable : " + inputId, "error"); return; }
+  const rangeAddr = el.value.trim();
   if (!rangeAddr) { showToast("Entrez une plage valide (ex: A1:B50)", "error"); return; }
 
   if (!state.officeReady) {
