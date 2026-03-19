@@ -1,31 +1,13 @@
-# ================================================================
-# PhysioAI Lab — Backend Python Requirements
-# ================================================================
-
-# ── API Framework ─────────────────────────────────────────────
-fastapi==0.115.0
-uvicorn[standard]==0.30.0
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.1
+numpy==1.26.4
+scipy==1.13.0
+pandas==2.2.2
+scikit-learn==1.4.2
+torch==2.3.0
+sympy==1.12
+matplotlib==3.8.4
 python-multipart==0.0.9
-pydantic==2.8.0
-
-# ── Calcul scientifique ───────────────────────────────────────
-numpy>=1.26.0
-scipy>=1.13.0
-pandas>=2.2.0
-sympy>=1.13.0
-
-# ── Machine Learning ──────────────────────────────────────────
-scikit-learn>=1.5.0
-
-# ── Deep Learning (PyTorch CPU — remplacer par torch+cu121 pour GPU) ──
-torch>=2.3.0
-torchvision>=0.18.0
-
-# ── Tests ────────────────────────────────────────────────────
-pytest>=8.3.0
-httpx>=0.27.0
-pytest-asyncio>=0.23.0
-
-# ── Utilitaires ──────────────────────────────────────────────
-python-dotenv>=1.0.0
-loguru>=0.7.0
+httpx==0.27.0
+loguru==0.7.2

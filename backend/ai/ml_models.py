@@ -1,239 +1,289 @@
 """
-================================================================
-ai/ml_models.py
-Machine Learning avancé :
-  - Random Forest Regressor / Classifier
-  - Support Vector Regression (SVR)
-  - Gradient Boosting
-  - Clustering (K-Means, DBSCAN, Agglomeratif)
-================================================================
+PhysioAI Lab — Machine Learning & Deep Learning Module
+Random Forest, SVR, clustering, réseau de neurones PyTorch.
 """
 
-import logging
-from typing import Any
-
+from __future__ import annotations
 import numpy as np
-from sklearn.cluster import DBSCAN, AgglomerativeClustering, KMeans
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
-from sklearn.metrics import (
-    mean_squared_error,
-    r2_score,
-    silhouette_score,
-)
-from sklearn.model_selection import KFold, cross_val_score
-from sklearn.preprocessing import StandardScaler
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.svm import SVR
+from sklearn.cluster import KMeans, DBSCAN
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import Pipeline
+from typing import Optional
 
-logger = logging.getLogger("physioai.ml")
-
-
-# ── Utilitaires ──────────────────────────────────────────────────────────────
-
-def _prep(X_raw: list[list], y_raw: list | None = None):
-    """Prépare X (et optionnellement y) pour sklearn."""
-    X = np.asarray(X_raw, dtype=np.float64)
-    if X.ndim == 1:
-        X = X.reshape(-1, 1)
-    scaler = StandardScaler()
-    X_s    = scaler.fit_transform(X)
-    y      = np.asarray(y_raw, dtype=np.float64).ravel() if y_raw is not None else None
-    return X, X_s, y, scaler
+from utils.data_utils import r_squared, rmse, mae
 
 
-def _metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    r2   = float(r2_score(y_true, y_pred))
-    rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
-    mae  = float(np.mean(np.abs(y_true - y_pred)))
-    return {"r2": r2, "rmse": rmse, "mae": mae}
+# ══════════════════════════════════════════════════════════════════════════════
+# 1. MACHINE LEARNING CLASSIQUE
+# ══════════════════════════════════════════════════════════════════════════════
+
+class MLEngine:
+    """Random Forest Regressor, GBM, SVR avec validation croisée."""
+
+    def __init__(self):
+        self.scaler = StandardScaler()
+        self._model = None
+        self._model_type = None
+
+    def _build_pipeline(self, model_type: str, **kwargs):
+        models = {
+            "random_forest": RandomForestRegressor(
+                n_estimators=kwargs.get("n_estimators", 100),
+                max_depth=kwargs.get("max_depth", None),
+                random_state=42,
+            ),
+            "gradient_boosting": GradientBoostingRegressor(
+                n_estimators=kwargs.get("n_estimators", 100),
+                learning_rate=kwargs.get("learning_rate", 0.1),
+                random_state=42,
+            ),
+            "svr": SVR(
+                kernel=kwargs.get("kernel", "rbf"),
+                C=kwargs.get("C", 1.0),
+                epsilon=kwargs.get("epsilon", 0.1),
+            ),
+        }
+        if model_type not in models:
+            raise ValueError(f"Modèle ML inconnu: {model_type}")
+        return Pipeline([("scaler", StandardScaler()), ("model", models[model_type])])
+
+    def train(self, X: np.ndarray, y: np.ndarray, model_type: str = "random_forest",
+              cv_folds: int = 5, **kwargs) -> dict:
+        """Entraîne le modèle et retourne les métriques."""
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        pipeline = self._build_pipeline(model_type, **kwargs)
+        pipeline.fit(X, y)
+        y_pred = pipeline.predict(X)
+
+        # Cross-validation
+        cv_scores = cross_val_score(pipeline, X, y, cv=min(cv_folds, len(y)),
+                                    scoring="r2")
+
+        self._model = pipeline
+        self._model_type = model_type
+
+        result = {
+            "model": model_type,
+            "r2_train": r_squared(y, y_pred),
+            "rmse_train": rmse(y, y_pred),
+            "mae_train": mae(y, y_pred),
+            "cv_r2_mean": float(cv_scores.mean()),
+            "cv_r2_std": float(cv_scores.std()),
+            "y_pred": y_pred.tolist(),
+        }
+
+        # Feature importances pour RF / GBM
+        if hasattr(pipeline["model"], "feature_importances_"):
+            result["feature_importances"] = pipeline["model"].feature_importances_.tolist()
+
+        return result
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        if self._model is None:
+            raise RuntimeError("Le modèle n'est pas encore entraîné.")
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        return self._model.predict(X)
 
 
-# ── Random Forest ─────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# 2. CLUSTERING
+# ══════════════════════════════════════════════════════════════════════════════
 
-def random_forest_regression(
-    X_data: list[list], y_data: list,
-    n_estimators: int = 100,
-    max_depth: int | None = None,
-    cv_folds: int = 5,
-) -> dict[str, Any]:
+class ClusteringEngine:
+    """K-Means et DBSCAN."""
+
+    def kmeans(self, X: np.ndarray, n_clusters: int = 3) -> dict:
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        scaler = StandardScaler()
+        Xs = scaler.fit_transform(X)
+        model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        labels = model.fit_predict(Xs)
+        return {
+            "method": "kmeans",
+            "n_clusters": n_clusters,
+            "labels": labels.tolist(),
+            "centers": scaler.inverse_transform(model.cluster_centers_).tolist(),
+            "inertia": float(model.inertia_),
+        }
+
+    def dbscan(self, X: np.ndarray, eps: float = 0.5, min_samples: int = 5) -> dict:
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        scaler = StandardScaler()
+        Xs = scaler.fit_transform(X)
+        model = DBSCAN(eps=eps, min_samples=min_samples)
+        labels = model.fit_predict(Xs)
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        return {
+            "method": "dbscan",
+            "n_clusters": n_clusters,
+            "labels": labels.tolist(),
+            "noise_points": int(np.sum(labels == -1)),
+        }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 3. DEEP LEARNING — RÉSEAU DE NEURONES (PyTorch)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class PhysioNet(nn.Module):
+    """Réseau de neurones dense configurable pour régression."""
+
+    def __init__(self, input_dim: int = 1, hidden_dims: list[int] = None,
+                 output_dim: int = 1, dropout: float = 0.1):
+        super().__init__()
+        hidden_dims = hidden_dims or [64, 64, 32]
+        layers = []
+        prev = input_dim
+        for h in hidden_dims:
+            layers += [nn.Linear(prev, h), nn.BatchNorm1d(h), nn.ReLU(), nn.Dropout(dropout)]
+            prev = h
+        layers.append(nn.Linear(prev, output_dim))
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.network(x)
+
+
+class DeepLearningEngine:
+    """Entraînement et prédiction avec PhysioNet (PyTorch)."""
+
+    def __init__(self):
+        self.model: Optional[PhysioNet] = None
+        self.scaler_X = StandardScaler()
+        self.scaler_y = StandardScaler()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.history: list[dict] = []
+
+    def train(self, X: np.ndarray, y: np.ndarray,
+              epochs: int = 200, lr: float = 1e-3, batch_size: int = 32,
+              hidden_dims: list[int] = None, dropout: float = 0.1) -> dict:
+        """Entraîne le réseau de neurones."""
+
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        y_2d = y.reshape(-1, 1)
+
+        # Normalisation
+        Xs = self.scaler_X.fit_transform(X).astype(np.float32)
+        ys = self.scaler_y.fit_transform(y_2d).astype(np.float32)
+
+        X_t = torch.tensor(Xs, device=self.device)
+        y_t = torch.tensor(ys, device=self.device)
+
+        dataset = TensorDataset(X_t, y_t)
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+        input_dim = Xs.shape[1]
+        self.model = PhysioNet(input_dim, hidden_dims, 1, dropout).to(self.device)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-5)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=20, factor=0.5)
+        criterion = nn.MSELoss()
+
+        self.history = []
+        self.model.train()
+        for epoch in range(epochs):
+            epoch_loss = 0.0
+            for xb, yb in loader:
+                optimizer.zero_grad()
+                pred = self.model(xb)
+                loss = criterion(pred, yb)
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                optimizer.step()
+                epoch_loss += loss.item() * len(xb)
+            avg_loss = epoch_loss / len(dataset)
+            scheduler.step(avg_loss)
+            if epoch % max(1, epochs // 20) == 0:
+                self.history.append({"epoch": epoch, "loss": avg_loss})
+
+        # Métriques finales
+        self.model.eval()
+        with torch.no_grad():
+            y_pred_s = self.model(X_t).cpu().numpy()
+        y_pred = self.scaler_y.inverse_transform(y_pred_s).flatten()
+
+        return {
+            "model": "neural_network",
+            "architecture": f"Input({input_dim}) → {hidden_dims or [64,64,32]} → Output(1)",
+            "epochs": epochs,
+            "final_loss": self.history[-1]["loss"] if self.history else None,
+            "r2": r_squared(y, y_pred),
+            "rmse": rmse(y, y_pred),
+            "mae": mae(y, y_pred),
+            "y_pred": y_pred.tolist(),
+            "training_history": self.history,
+        }
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        if self.model is None:
+            raise RuntimeError("Le modèle n'est pas encore entraîné.")
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        self.model.eval()
+        Xs = self.scaler_X.transform(X).astype(np.float32)
+        X_t = torch.tensor(Xs, device=self.device)
+        with torch.no_grad():
+            y_pred_s = self.model(X_t).cpu().numpy()
+        return self.scaler_y.inverse_transform(y_pred_s).flatten()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. HYBRID MODELING — Physics-Informed Neural Network (simplifié)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class HybridModel:
     """
-    Random Forest Regressor avec validation croisée.
-    Retourne les importances de variables et les scores OOB.
+    Modèle hybride : prédiction = modèle_physique(x, params) + correction_NN(x)
+    Le réseau apprend la correction résiduelle.
     """
-    X, X_s, y, scaler = _prep(X_data, y_data)
-    n = len(y)
 
-    model = RandomForestRegressor(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        oob_score=True,
-        random_state=42,
-        n_jobs=-1,
-    )
-    model.fit(X_s, y)
-    y_pred = model.predict(X_s)
-    perf   = _metrics(y, y_pred)
+    def __init__(self, physical_func, p0: list[float]):
+        self.physical_func = physical_func    # ex: lambda x, k: C0*exp(-k*x)
+        self.p0 = p0
+        self.physical_params = None
+        self.dl_engine = DeepLearningEngine()
 
-    # Cross-validation
-    k = min(cv_folds, n)
-    cv_r2 = float(cross_val_score(model, X_s, y, cv=k, scoring="r2").mean())
+    def train(self, x: np.ndarray, y: np.ndarray, epochs: int = 150, **kw) -> dict:
+        from scipy.optimize import curve_fit
+        # 1) Calibration du modèle physique
+        popt, _ = curve_fit(self.physical_func, x, y, p0=self.p0, maxfev=10000)
+        self.physical_params = popt
+        y_physical = self.physical_func(x, *popt)
 
-    # Importance des features
-    feat_imp = model.feature_importances_.tolist()
+        # 2) Résidus = ce que le modèle physique ne capture pas
+        residuals = y - y_physical
 
-    logger.info(f"Random Forest : R²={perf['r2']:.4f}, OOB={model.oob_score_:.4f}, CV-R²={cv_r2:.4f}")
+        # 3) Le NN apprend les résidus
+        dl_result = self.dl_engine.train(x, residuals, epochs=epochs, **kw)
 
-    return {
-        "model":              "random_forest",
-        "n_estimators":       n_estimators,
-        "max_depth":          max_depth,
-        "oob_score":          float(model.oob_score_),
-        "cv_r2":              cv_r2,
-        "feature_importance": feat_imp,
-        "y_true":             y.tolist(),
-        "y_pred":             y_pred.tolist(),
-        "residuals":          (y - y_pred).tolist(),
-        **perf,
-    }
+        # 4) Prédiction hybride
+        y_correction = self.dl_engine.predict(x)
+        y_hybrid = y_physical + y_correction
 
+        return {
+            "model": "hybrid",
+            "physical_params": {f"p{i}": float(v) for i, v in enumerate(popt)},
+            "physical_r2": r_squared(y, y_physical),
+            "hybrid_r2": r_squared(y, y_hybrid),
+            "hybrid_rmse": rmse(y, y_hybrid),
+            "hybrid_mae": mae(y, y_hybrid),
+            "nn_details": dl_result,
+            "y_physical": y_physical.tolist(),
+            "y_hybrid": y_hybrid.tolist(),
+            "residuals": residuals.tolist(),
+        }
 
-# ── SVR ───────────────────────────────────────────────────────────────────────
-
-def svr_regression(
-    X_data: list[list], y_data: list,
-    kernel: str = "rbf",
-    C: float = 1.0, epsilon: float = 0.1, gamma: str = "scale",
-    cv_folds: int = 5,
-) -> dict[str, Any]:
-    """
-    Support Vector Regression.
-    Noyaux supportés : rbf, linear, poly, sigmoid.
-    """
-    X, X_s, y, scaler = _prep(X_data, y_data)
-    n = len(y)
-
-    model = SVR(kernel=kernel, C=C, epsilon=epsilon, gamma=gamma)
-    model.fit(X_s, y)
-    y_pred = model.predict(X_s)
-    perf   = _metrics(y, y_pred)
-
-    k     = min(cv_folds, n)
-    cv_r2 = float(cross_val_score(model, X_s, y, cv=k, scoring="r2").mean())
-
-    logger.info(f"SVR ({kernel}) : R²={perf['r2']:.4f}, CV-R²={cv_r2:.4f}")
-
-    return {
-        "model":      "svr",
-        "kernel":     kernel,
-        "C":          C,
-        "epsilon":    epsilon,
-        "cv_r2":      cv_r2,
-        "n_sv":       int(model.n_support_.sum()),
-        "y_true":     y.tolist(),
-        "y_pred":     y_pred.tolist(),
-        "residuals":  (y - y_pred).tolist(),
-        **perf,
-    }
-
-
-# ── Gradient Boosting ─────────────────────────────────────────────────────────
-
-def gradient_boosting(
-    X_data: list[list], y_data: list,
-    n_estimators: int = 100, learning_rate: float = 0.1,
-    max_depth: int = 3, cv_folds: int = 5,
-) -> dict[str, Any]:
-    """Gradient Boosting Regressor (scikit-learn)."""
-    X, X_s, y, _ = _prep(X_data, y_data)
-
-    model = GradientBoostingRegressor(
-        n_estimators=n_estimators, learning_rate=learning_rate,
-        max_depth=max_depth, random_state=42,
-    )
-    model.fit(X_s, y)
-    y_pred = model.predict(X_s)
-    perf   = _metrics(y, y_pred)
-
-    k     = min(cv_folds, len(y))
-    cv_r2 = float(cross_val_score(model, X_s, y, cv=k, scoring="r2").mean())
-
-    return {
-        "model":              "gradient_boosting",
-        "n_estimators":       n_estimators,
-        "learning_rate":      learning_rate,
-        "feature_importance": model.feature_importances_.tolist(),
-        "cv_r2":              cv_r2,
-        "y_true":             y.tolist(),
-        "y_pred":             y_pred.tolist(),
-        **perf,
-    }
-
-
-# ── Clustering ────────────────────────────────────────────────────────────────
-
-def kmeans_clustering(
-    X_data: list[list],
-    k: int | None = None,
-    max_k: int = 10,
-) -> dict[str, Any]:
-    """
-    K-Means avec sélection automatique de k (méthode du coude + Silhouette).
-    """
-    X, X_s, _, _ = _prep(X_data)
-    n = X_s.shape[0]
-
-    # Sélection automatique de k
-    if k is None:
-        inertias    = []
-        sil_scores  = []
-        k_range     = range(2, min(max_k + 1, n))
-        for ki in k_range:
-            km = KMeans(n_clusters=ki, random_state=42, n_init=10)
-            km.fit(X_s)
-            inertias.append(float(km.inertia_))
-            sil_scores.append(float(silhouette_score(X_s, km.labels_)))
-        k = int(k_range[int(np.argmax(sil_scores))])
-        elbow_data = {"k_range": list(k_range), "inertias": inertias, "silhouettes": sil_scores}
-    else:
-        elbow_data = None
-
-    model  = KMeans(n_clusters=k, random_state=42, n_init=10)
-    labels = model.fit_predict(X_s)
-    sil    = float(silhouette_score(X_s, labels)) if k > 1 else 0.0
-
-    return {
-        "model":       "kmeans",
-        "k":           k,
-        "labels":      labels.tolist(),
-        "centers":     model.cluster_centers_.tolist(),
-        "inertia":     float(model.inertia_),
-        "silhouette":  sil,
-        "elbow_data":  elbow_data,
-        "X":           X.tolist(),
-    }
-
-
-def dbscan_clustering(
-    X_data: list[list],
-    eps: float = 0.5, min_samples: int = 5,
-) -> dict[str, Any]:
-    """DBSCAN : détecte le nombre de clusters automatiquement + outliers."""
-    X, X_s, _, _ = _prep(X_data)
-
-    model  = DBSCAN(eps=eps, min_samples=min_samples)
-    labels = model.fit_predict(X_s)
-
-    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-    n_noise    = int(np.sum(labels == -1))
-
-    sil = float(silhouette_score(X_s, labels)) if n_clusters > 1 else 0.0
-
-    return {
-        "model":      "dbscan",
-        "eps":        eps,
-        "min_samples": min_samples,
-        "n_clusters": n_clusters,
-        "n_noise":    n_noise,
-        "labels":     labels.tolist(),
-        "silhouette": sil,
-        "X":          X.tolist(),
-    }
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        y_physical = self.physical_func(x, *self.physical_params)
+        y_correction = self.dl_engine.predict(x)
+        return y_physical + y_correction

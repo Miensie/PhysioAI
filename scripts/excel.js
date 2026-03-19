@@ -1,280 +1,136 @@
 /**
- * excel.js — Interactions Excel via Office.js pour PhysioAI Lab
- * Lecture, écriture et export des résultats.
+ * PhysioAI Lab — Module Excel (Office.js)
+ * Lecture / écriture de données depuis/vers Excel
  */
-"use strict";
 
-const ExcelIO = {
+const ExcelHelper = {
 
-  // ── Lecture de la sélection ───────────────────────────────────────────────
-  async readSelection(hasHeader = true) {
-    return Excel.run(async (ctx) => {
-      const range = ctx.workbook.getSelectedRange();
-      range.load(["values", "address"]);
-      await ctx.sync();
+  /**
+   * Lit une plage Excel et retourne un tableau de nombres.
+   * @param {string} rangeAddress - Adresse de la plage (ex: "A2:A20")
+   * @returns {Promise<number[]>} Tableau de valeurs numériques
+   */
+  async readRange(rangeAddress) {
+    return new Promise((resolve, reject) => {
+      Excel.run(async (context) => {
+        try {
+          const sheet = context.workbook.worksheets.getActiveWorksheet();
+          const range = sheet.getRange(rangeAddress);
+          range.load("values");
+          await context.sync();
 
-      const raw = range.values;
-      if (!raw || raw.length < 2) throw new Error("Sélection trop petite (min. 2 lignes).");
+          const values = range.values.flat().map(v => {
+            const num = parseFloat(v);
+            if (isNaN(num)) throw new Error(`Valeur non numérique: "${v}"`);
+            return num;
+          });
 
-      let headers, dataRows, sampleNames;
-
-      if (hasHeader) {
-        headers  = raw[0].map((h, i) => (h !== null && h !== "") ? String(h) : `V${i+1}`);
-        dataRows = raw.slice(1);
-      } else {
-        headers  = raw[0].map((_, i) => `V${i+1}`);
-        dataRows = raw;
-      }
-
-      // Détecter colonne texte (identifiants)
-      const firstColText = dataRows.every(r => typeof r[0] === "string" && isNaN(parseFloat(r[0])));
-      if (firstColText) {
-        sampleNames = dataRows.map(r => String(r[0]));
-        headers     = headers.slice(1);
-        dataRows    = dataRows.map(r => r.slice(1));
-        if (hasHeader) headers = raw[0].slice(1).map((h, i) => h || `V${i+1}`);
-      } else {
-        sampleNames = dataRows.map((_, i) => `S${i+1}`);
-      }
-
-      // Convertir en float
-      const data = dataRows.map(row =>
-        row.map(v => { const n = parseFloat(v); return isNaN(n) ? NaN : n; })
-      );
-
-      // Construire dict pour l'API
-      const dataDict = {};
-      headers.forEach((h, j) => {
-        dataDict[h] = data.map(r => r[j] || 0);
+          resolve(values);
+        } catch (e) {
+          reject(e);
+        }
       });
-
-      return {
-        headers, data, sampleNames, dataDict,
-        address: range.address,
-        nRows: data.length, nCols: headers.length,
-      };
     });
   },
 
-  // ── Parse CSV ─────────────────────────────────────────────────────────────
-  parseCSV(text, sep = ",", hasHeader = true) {
-    const lines = text.trim().split(/\r?\n/);
-    const rows  = lines.map(l => l.split(sep).map(v => v.trim().replace(/^"|"$/g, "")));
+  /**
+   * Écrit un tableau de données dans Excel à partir d'une cellule.
+   * @param {string} startCell - Cellule de départ (ex: "D1")
+   * @param {Array<Array>} headers - En-têtes du tableau
+   * @param {Array<Array>} data - Données à écrire
+   * @param {string} sheetName - Nom de la feuille (optionnel)
+   */
+  async writeResults(startCell, headers, data, sheetName = null) {
+    return new Promise((resolve, reject) => {
+      Excel.run(async (context) => {
+        try {
+          let sheet;
+          if (sheetName) {
+            try {
+              sheet = context.workbook.worksheets.getItem(sheetName);
+            } catch {
+              sheet = context.workbook.worksheets.add(sheetName);
+            }
+          } else {
+            sheet = context.workbook.worksheets.getActiveWorksheet();
+          }
 
-    let headers, dataRows, sampleNames;
-    if (hasHeader) {
-      headers  = rows[0].map((h, i) => h || `V${i+1}`);
-      dataRows = rows.slice(1);
-    } else {
-      headers  = rows[0].map((_, i) => `V${i+1}`);
-      dataRows = rows;
-    }
+          const allData = [headers, ...data];
+          const endCol = String.fromCharCode(startCell.charCodeAt(0) + headers.length - 1);
+          const startRow = parseInt(startCell.slice(1));
+          const endRow = startRow + allData.length - 1;
+          const rangeAddr = `${startCell}:${endCol}${endRow}`;
 
-    const firstColText = dataRows.every(r => typeof r[0] === "string" && isNaN(parseFloat(r[0])));
-    if (firstColText) {
-      sampleNames = dataRows.map(r => r[0]);
-      headers     = headers.slice(1);
-      dataRows    = dataRows.map(r => r.slice(1));
-    } else {
-      sampleNames = dataRows.map((_, i) => `S${i+1}`);
-    }
+          const range = sheet.getRange(rangeAddr);
+          range.values = allData;
 
-    const data = dataRows.map(row =>
-      row.map(v => { const n = parseFloat(v); return isNaN(n) ? NaN : n; })
-    );
+          // Style des en-têtes
+          const headerRange = sheet.getRange(`${startCell}:${endCol}${startRow}`);
+          headerRange.format.fill.color = "#161b22";
+          headerRange.format.font.bold = true;
+          headerRange.format.font.color = "#39d0d8";
 
-    const dataDict = {};
-    headers.forEach((h, j) => { dataDict[h] = data.map(r => r[j] || 0); });
+          // Ajustement automatique des colonnes
+          range.format.autofitColumns();
 
-    return { headers, data, sampleNames, dataDict, nRows: data.length, nCols: headers.length };
-  },
-
-  // ── Export vers Excel ─────────────────────────────────────────────────────
-
-  /** Utilitaires internes */
-  _n(v, d = 4) {
-    if (v === null || v === undefined || !isFinite(v)) return 0;
-    return parseFloat(Number(v).toFixed(d));
-  },
-
-  async _sheet(ctx, name) {
-    const ws = ctx.workbook.worksheets.getItemOrNullObject(name);
-    ws.load("isNullObject");
-    await ctx.sync();
-    if (ws.isNullObject) {
-      const s = ctx.workbook.worksheets.add(name);
-      s.activate();
-      await ctx.sync();
-      return s;
-    }
-    const used = ws.getUsedRangeOrNullObject();
-    used.load("isNullObject");
-    await ctx.sync();
-    if (!used.isNullObject) { used.clear("All"); await ctx.sync(); }
-    ws.activate();
-    return ws;
-  },
-
-  _write(sheet, row, col, data2D) {
-    if (!data2D || data2D.length === 0) return row;
-    const nCols = Math.max(...data2D.map(r => Array.from(r).length), 1);
-    const safe  = data2D.map(r => {
-      const a = Array.from(r);
-      const out = new Array(nCols).fill("");
-      for (let j = 0; j < nCols; j++) {
-        const v = a[j];
-        out[j] = (v === null || v === undefined) ? "" : (typeof v === "number" && !isFinite(v)) ? 0 : v;
-      }
-      return out;
-    });
-    sheet.getRangeByIndexes(row, col, safe.length, nCols).values = safe;
-    return row + safe.length;
-  },
-
-  _header(sheet, row, cols) {
-    if (!cols.length) return row;
-    const r = sheet.getRangeByIndexes(row, 0, 1, cols.length);
-    r.values = [cols.map(c => String(c ?? ""))];
-    r.format.font.bold  = true;
-    r.format.font.color = "#003300";
-    r.format.fill.color = "#C6EFCE";
-    return row + 1;
-  },
-
-  _title(sheet, row, text, w) {
-    const width = Math.max(w, 1);
-    // values DOIT avoir exactement width colonnes — remplir avec ""
-    const rowData = [text, ...new Array(width - 1).fill("")];
-    const range = sheet.getRangeByIndexes(row, 0, 1, width);
-    range.values = [rowData];
-    range.getCell(0, 0).format.font.bold  = true;
-    range.getCell(0, 0).format.font.color = "#FFFFFF";
-    range.getCell(0, 0).format.font.size  = 11;
-    range.format.fill.color = "#1E4080";
-    return row + 1;
-  },
-
-  // ── Export résultats régression ───────────────────────────────────────────
-  async exportRegression(result, sampleNames) {
-    return Excel.run(async (ctx) => {
-      const sheet = await this._sheet(ctx, "PhysioAI_Régression");
-      let row = 0;
-
-      row = this._title(sheet, row, `Régression ${result.type?.toUpperCase() || ""}`, 2);
-      row = this._header(sheet, row, ["Métrique", "Valeur"]);
-      const metrics = [
-        ["R²",    this._n(result.r2, 4)],
-        ["RMSE",  this._n(result.rmse, 4)],
-        ["MAE",   this._n(result.mae, 4)],
-      ];
-      if (result.slope !== undefined) {
-        metrics.push(["Pente", this._n(result.slope, 6)]);
-        metrics.push(["Intercept", this._n(result.intercept, 6)]);
-        metrics.push(["p-valeur", this._n(result.p_value, 6)]);
-      }
-      row = this._write(sheet, row, 0, metrics);
-      row += 2;
-
-      row = this._title(sheet, row, "Données et prédictions", 4);
-      row = this._header(sheet, row, ["Échantillon", "y réel", "y prédit", "Résidu"]);
-      const predData = (result.y_true || []).map((y, i) => [
-        sampleNames?.[i] || `S${i+1}`,
-        this._n(y, 4),
-        this._n((result.y_pred || [])[i], 4),
-        this._n((result.residuals || [])[i], 4),
-      ]);
-      this._write(sheet, row, 0, predData);
-
-      await ctx.sync();
+          await context.sync();
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
   },
 
-  // ── Export modèle physique ────────────────────────────────────────────────
-  async exportPhysics(result, sampleNames) {
-    return Excel.run(async (ctx) => {
-      const sheet = await this._sheet(ctx, "PhysioAI_Physique");
-      let row = 0;
-
-      row = this._title(sheet, row, `Modèle : ${result.model || "physique"}`, 2);
-      row = this._header(sheet, row, ["Paramètre", "Valeur"]);
-      const params = Object.entries(result.params || {}).map(([k, v]) => [k, this._n(v, 6)]);
-      if (result.r2 !== null && result.r2 !== undefined) params.push(["R²", this._n(result.r2, 4)]);
-      if (result.half_life) params.push(["Demi-vie", this._n(result.half_life, 4)]);
-      row = this._write(sheet, row, 0, params);
-      row += 2;
-
-      row = this._title(sheet, row, "Simulation", 2);
-      row = this._header(sheet, row, ["t", "C simulé"]);
-      const simData = (result.t_sim || []).map((t, i) => [
-        this._n(t, 4), this._n((result.C_sim || [])[i], 6),
-      ]);
-      this._write(sheet, row, 0, simData);
-
-      await ctx.sync();
-    });
+  /**
+   * Exporte les résultats de régression dans une nouvelle feuille.
+   */
+  async exportRegressionResults(data) {
+    const { curveX, curveY, equation, r2, model_type } = data;
+    const rows = curveX.map((x, i) => [x, curveY[i]]);
+    const sheetName = `Régression_${model_type}`;
+    await this.writeResults("A1", ["x", "y_modèle"], rows, sheetName);
+    return sheetName;
   },
 
-  // ── Export simulation ─────────────────────────────────────────────────────
-  async exportSimulation(result) {
-    return Excel.run(async (ctx) => {
-      const sheet = await this._sheet(ctx, "PhysioAI_Simulation");
-      let row = 0;
-
-      row = this._title(sheet, row, "Résultats de simulation", 3);
-      row = this._header(sheet, row, ["t", "C(t)", "Conversion"]);
-      const data = (result.t || result.t_sim || []).map((t, i) => [
-        this._n(t, 4),
-        this._n((result.C || result.C_sim || [])[i], 6),
-        this._n((result.conversion || [])[i], 4),
-      ]);
-      this._write(sheet, row, 0, data);
-
-      await ctx.sync();
-    });
+  /**
+   * Exporte les résultats de simulation physique.
+   */
+  async exportPhysicsResults(data) {
+    const { t, y, model_type } = data;
+    const rows = t.map((ti, i) => [ti, y[i]]);
+    const sheetName = `Simulation_${model_type}`;
+    await this.writeResults("A1", ["temps", "valeur"], rows, sheetName);
+    return sheetName;
   },
 
-  // ── Export ML ─────────────────────────────────────────────────────────────
-  async exportML(result, varNames, sampleNames) {
-    return Excel.run(async (ctx) => {
-      const sheet = await this._sheet(ctx, "PhysioAI_ML");
-      let row = 0;
+  /**
+   * Vérifie si on est dans un environnement Office.
+   */
+  isOfficeEnvironment() {
+    return typeof Office !== "undefined" && typeof Excel !== "undefined";
+  },
 
-      row = this._title(sheet, row, `Résultats ${result.model?.toUpperCase() || "ML"}`, 2);
-      row = this._header(sheet, row, ["Métrique", "Valeur"]);
-      const metrics = [
-        ["R²", this._n(result.r2, 4)],
-        ["RMSE", this._n(result.rmse, 4)],
-        ["CV R²", this._n(result.cv_r2, 4)],
-      ].filter(([, v]) => v !== 0 || true);
-      row = this._write(sheet, row, 0, metrics);
-      row += 2;
-
-      if (result.feature_importance) {
-        row = this._title(sheet, row, "Importance des variables", 2);
-        row = this._header(sheet, row, ["Variable", "Importance"]);
-        const vn = varNames || result.feature_importance.map((_, i) => `V${i+1}`);
-        const impData = result.feature_importance
-          .map((v, i) => ({ name: vn[i], v }))
-          .sort((a, b) => b.v - a.v)
-          .map(d => [d.name, this._n(d.v, 4)]);
-        row = this._write(sheet, row, 0, impData);
-        row += 2;
-      }
-
-      if (result.y_pred) {
-        row = this._title(sheet, row, "Prédictions", 3);
-        row = this._header(sheet, row, ["Échantillon", "y réel", "y prédit"]);
-        const predData = (result.y_true || []).map((y, i) => [
-          sampleNames?.[i] || `S${i+1}`,
-          this._n(y, 4),
-          this._n((result.y_pred || [])[i], 4),
-        ]);
-        this._write(sheet, row, 0, predData);
-      }
-
-      await ctx.sync();
-    });
+  /**
+   * Mode démo: données exemples si pas dans Office.
+   */
+  getDemoData(type = "kinetics_1") {
+    const demos = {
+      kinetics_1: {
+        x: [0, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80],
+        y: [1.00, 0.78, 0.61, 0.47, 0.37, 0.29, 0.22, 0.14, 0.08, 0.05, 0.03, 0.02],
+      },
+      linear: {
+        x: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        y: [0.5, 1.8, 3.2, 4.1, 5.6, 6.9, 8.1, 9.3, 10.8, 12.2, 13.5],
+      },
+      noisy: {
+        x: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20],
+        y: [2.1, 3.8, 7.2, 12.5, 19.8, 29.1, 42.3, 58.7, 79.4, 103.1, 132.5],
+      },
+    };
+    return demos[type] || demos.kinetics_1;
   },
 };
 
-window.ExcelIO = ExcelIO;
+window.ExcelHelper = ExcelHelper;

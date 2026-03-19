@@ -1,7 +1,7 @@
-# PhysioAI Lab — Add-in Excel de Modélisation Physico-Chimique + IA
+# ⚗ PhysioAI Lab
 
-> **Plateforme professionnelle de modélisation industrielle avec Deep Learning**  
-> Régression · Modèles physiques · Cinétique · Diffusion · Random Forest · PyTorch · Hybride IA+Physique
+> **Modélisation physico-chimique assistée par intelligence artificielle**  
+> Excel Web Add-in (Office.js) + Backend Python FastAPI
 
 ---
 
@@ -9,236 +9,169 @@
 
 ```
 physioai-lab/
-│
-├── manifest.xml                    ← Manifeste Office Add-in
-│
-├── frontend/
-│   ├── taskpane.html               ← Interface principale (6 panneaux)
-│   ├── styles/app.css              ← Thème laboratoire industriel sombre
-│   └── scripts/
-│       ├── api.js                  ← Client HTTP (tous les appels FastAPI)
-│       ├── charts.js               ← Graphiques Chart.js (7 types)
-│       ├── excel.js                ← Interactions Office.js
-│       └── app.js                  ← Orchestrateur principal (1200 lignes)
-│
 ├── backend/
-│   ├── main.py                     ← Application FastAPI
+│   ├── main.py                  # FastAPI — point d'entrée
 │   ├── requirements.txt
-│   │
+│   ├── api/
+│   │   ├── schemas.py           # Pydantic models
+│   │   ├── routes_regression.py # POST /model
+│   │   ├── routes_analysis.py   # POST /analyze
+│   │   ├── routes_physical.py   # POST /physical/*
+│   │   ├── routes_ai.py         # POST /ai/advise, /train_ai, /predict
+│   │   └── routes_simulation.py # POST /simulate
 │   ├── modeling/
-│   │   ├── regression.py           ← Linéaire, polynomiale, Ridge, Lasso
-│   │   └── physical_models.py      ← Cinétique, Fick, Batch, CSTR, Newton
-│   │
+│   │   ├── regression.py        # 7 types de régression
+│   │   ├── analysis.py          # Statistiques + corrélation
+│   │   └── physical.py          # Cinétique, CSTR, Fick, Newton…
 │   ├── ai/
-│   │   ├── ml_models.py            ← Random Forest, SVR, GB, K-Means, DBSCAN
-│   │   ├── deep_learning.py        ← MLP, ResNet, Hybride (PyTorch)
-│   │   └── ai_advisor.py           ← Conseiller IA automatique
-│   │
+│   │   ├── ai_advisor.py        # Analyse + recommandations IA
+│   │   ├── ml_models.py         # Random Forest, SVR, K-Means
+│   │   └── deep_learning.py     # MLP PyTorch + modèle hybride
 │   ├── optimization/
-│   │   └── optimizer.py            ← curve_fit, Nelder-Mead, Évolution diff.
-│   │
-│   ├── utils/
-│   │   └── statistics.py           ← Statistiques descriptives, corrélations
-│   │
-│   └── tests/
-│       └── test_backend.py         ← 25 tests pytest
-│
-└── docs/
-    └── examples/
-        └── sample_kinetics.csv     ← Données de test (cinétique + refroidissement)
+│   │   └── optimizer.py         # Calibration ODE, minimisation
+│   └── data/examples/
+│       ├── kinetics_data.json
+│       └── regression_data.json
+└── frontend/
+    ├── manifest.xml             # Office Add-in manifest
+    ├── taskpane.html            # Interface principale
+    ├── css/taskpane.css
+    └── js/taskpane.js
 ```
 
 ---
 
 ## Installation
 
-### Prérequis
-- Python 3.11+
-- Node.js 18+ (pour le serveur HTTPS local)
-- Microsoft Excel 2019+ ou Microsoft 365
-
----
-
 ### Backend Python
 
 ```bash
-cd physioai-lab/backend
-
-# Environnement virtuel
-python -m venv .venv
-source .venv/bin/activate          # Linux/macOS
-.venv\Scripts\activate             # Windows
-
-# Dépendances
+cd backend
+python -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Lancer le serveur
 python main.py
-# → http://localhost:8000
+# → API disponible sur http://localhost:8000
 # → Documentation Swagger : http://localhost:8000/docs
 ```
 
-**Avec GPU CUDA (optionnel) :**
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu121
-```
-
----
-
 ### Frontend Excel Add-in
 
+**Option 1 — Développement local (avec npx)**
 ```bash
-# Option A : serveur statique Python (le plus simple)
-cd physioai-lab/frontend
-python -m http.server 3000
-# → http://localhost:3000/taskpane.html
-
-# Option B : avec HTTPS (requis pour Excel Desktop)
-npm install -g http-server
-npx http-server . -p 3000 --ssl --cert cert.pem --key key.pem
-
-# Option C : GitHub Pages (déploiement zero-config)
-# → Mettre tous les fichiers frontend/ à la racine du dépôt
+cd frontend
+npx office-addin-dev-certs install
+npx http-server . -p 3000 --ssl
 ```
 
----
-
-### Charger l'Add-in dans Excel
-
-**Excel Desktop :**
-1. Insérer → Compléments → Mes compléments → Télécharger un complément
-2. Sélectionner `manifest.xml`
-
-**Excel Online :**
-1. Insérer → Compléments Office → Charger mon complément
-2. Sélectionner `manifest.xml`
-
----
-
-## Tests
-
-```bash
-cd backend
-pytest tests/ -v --tb=short
-
-# Avec coverage
-pip install pytest-cov
-pytest tests/ -v --cov=. --cov-report=html
-```
+**Option 2 — Sideload dans Excel**
+1. Ouvrir Excel → Insérer → Compléments → Gérer les compléments
+2. Charger `manifest.xml`
+3. L'add-in apparaît dans l'onglet Accueil
 
 ---
 
 ## Endpoints API
 
-| Méthode | URL | Description |
-|---------|-----|-------------|
-| GET  | `/health` | Statut + versions des librairies |
-| POST | `/analyze/stats` | Statistiques descriptives |
-| POST | `/analyze/correlation` | Corrélations Pearson + Spearman |
-| POST | `/analyze/recommend` | Recommandation de modèle IA |
-| POST | `/model/regression` | Régression linéaire/polynomiale |
-| POST | `/model/physics` | Modèles physico-chimiques |
-| POST | `/simulate/` | Simulation sur grille temporelle |
-| POST | `/train_ai/ml` | Entraînement ML (RF, SVR, GB) |
-| POST | `/train_ai/dl` | Entraînement Deep Learning PyTorch |
-| POST | `/predict/` | Prédiction sur nouvelles données |
-| POST | `/optimize/calibrate` | Calibration automatique des paramètres |
-| POST | `/optimize/auto` | Auto-sélection du meilleur modèle |
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| `POST` | `/api/v1/model` | Régression (7 types + auto) |
+| `POST` | `/api/v1/analyze` | Statistiques + corrélation |
+| `POST` | `/api/v1/simulate` | Simulation modèle physique |
+| `POST` | `/api/v1/physical/kinetics` | Cinétique chimique ordre 0/1/2 |
+| `POST` | `/api/v1/physical/cstr` | CSTR transitoire |
+| `POST` | `/api/v1/physical/diffusion` | Loi de Fick |
+| `POST` | `/api/v1/physical/heat` | Transfert de chaleur Newton |
+| `POST` | `/api/v1/ai/advise` | Conseiller IA intelligent |
+| `POST` | `/api/v1/train_ai` | ML (RF, SVR, GBM, KMeans) |
+| `POST` | `/api/v1/predict` | Deep Learning MLP PyTorch |
+| `POST` | `/api/v1/predict/hybrid` | Modèle hybride Physique + NN |
 
 ---
 
-## Exemples d'utilisation API
+## Exemples de requêtes
 
-### Cinétique ordre 1 (calibration)
+### Régression automatique
 ```bash
-curl -X POST http://localhost:8000/model/physics \
+curl -X POST http://localhost:8000/api/v1/model \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "kinetics",
-    "t": [0,1,2,3,4,5,8,10,15,20],
-    "C": [1.0,0.74,0.54,0.40,0.30,0.22,0.10,0.05,0.01,0.002],
-    "order": 1,
-    "C0_guess": 1.0,
-    "k_guess": 0.1
-  }'
+  -d '{"x":[1,2,3,4,5],"y":[2.1,4.0,6.2,7.9,10.1],"model_type":"auto"}'
 ```
 
-### Entraîner un MLP
+### Cinétique ordre 1 + calibration
 ```bash
-curl -X POST http://localhost:8000/train_ai/dl \
+curl -X POST http://localhost:8000/api/v1/physical/kinetics \
   -H "Content-Type: application/json" \
-  -d '{
-    "X": [[0],[1],[2],[3],[4],[5]],
-    "y": [1.0, 0.74, 0.54, 0.40, 0.30, 0.22],
-    "model": "mlp",
-    "hidden_dims": [32, 16],
-    "epochs": 300,
-    "lr": 0.001
-  }'
+  -d '{"t":[0,5,10,15,20],"C":[1.0,0.78,0.61,0.47,0.37],"C0":1.0,"k":0.05,"order":1,"fit":true}'
 ```
 
-### Recommandation IA
+### Conseiller IA
 ```bash
-curl -X POST http://localhost:8000/analyze/recommend \
+curl -X POST http://localhost:8000/api/v1/ai/advise \
   -H "Content-Type: application/json" \
-  -d '{
-    "data": {"t": [0,1,2,3,4,5], "C": [1.0,0.74,0.54,0.40,0.30,0.22]},
-    "target": "C",
-    "domain": "chemistry"
-  }'
+  -d '{"x":[0,5,10,15,20,25,30],"y":[1.0,0.78,0.61,0.47,0.37,0.29,0.22]}'
+```
+
+### Deep Learning MLP
+```bash
+curl -X POST http://localhost:8000/api/v1/predict \
+  -H "Content-Type: application/json" \
+  -d '{"X":[[0],[5],[10],[15],[20]],"y":[1.0,0.78,0.61,0.47,0.37],"hidden_layers":[32,16],"epochs":100}'
 ```
 
 ---
 
-## Fonctionnalités implémentées
+## Modèles disponibles
 
-### Modèles statistiques
-- ✅ Régression linéaire avec intervalles de confiance et p-valeur
-- ✅ Régression polynomiale (degré 1–10)
-- ✅ Ridge / Lasso (régularisation)
+### Régression
+| Modèle | Équation |
+|--------|----------|
+| Linéaire | y = a·x + b |
+| Logarithmique | y = a·ln(x) + b |
+| Exponentielle | y = a·exp(b·x) + c |
+| Puissance | y = a·x^b |
+| Polynomiale (deg n) | y = Σ aᵢ·xⁱ |
+| Ridge (L2) | Régression pénalisée L2 |
+| Lasso (L1) | Régression pénalisée L1 |
 
-### Modèles physiques
-- ✅ Cinétique chimique ordre 0, 1, 2 (calibration + simulation)
-- ✅ Réacteur batch (ODE RK45)
-- ✅ CSTR état stationnaire
-- ✅ Diffusion Fick 1D (solution analytique)
-- ✅ Refroidissement de Newton
+### Modèles Physiques (Génie des Procédés)
+- **Cinétique chimique** : ordre 0, 1, 2 avec calibration par curve_fit
+- **CSTR transitoire** : bilan matière avec réaction ordre 1
+- **PFR** : réacteur piston multi-ordres
+- **Diffusion de Fick** : 1D semi-infini
+- **Transfert de chaleur** : refroidissement/chauffage Newton
+- **Loi de Darcy** : écoulement en milieu poreux
+- **Antoine** : pression de vapeur saturante
+- **Tanks-in-Series** : distribution des temps de séjour
 
-### Machine Learning
-- ✅ Random Forest Regressor (OOB, feature importance)
-- ✅ Support Vector Regression (noyaux rbf, linear, poly)
-- ✅ Gradient Boosting
-- ✅ K-Means (auto-sélection k, Elbow + Silhouette)
-- ✅ DBSCAN
-
-### Deep Learning (PyTorch)
-- ✅ MLP générique (activation, dropout, batch norm)
-- ✅ ResNet tabulaire (blocs résiduels)
-- ✅ Early stopping
-- ✅ Modèle hybride Physique + NN résiduel
-
-### Optimisation
-- ✅ curve_fit (Levenberg-Marquardt)
-- ✅ Nelder-Mead (Simplex)
-- ✅ Évolution différentielle (global)
-- ✅ Auto-sélection du meilleur modèle physique
-- ✅ Analyse de sensibilité
-
-### IA Advisor
-- ✅ Détection de linéarité (R² LR vs RF)
-- ✅ Détection du bruit (SNR)
-- ✅ Détection d'outliers (IQR)
-- ✅ Test de normalité (Shapiro)
-- ✅ Recommandation multi-niveaux (statistique, physique, ML, DL, hybride)
+### Intelligence Artificielle
+- **Random Forest** + cross-validation + feature importance
+- **SVR** (noyaux RBF, linéaire, polynomial)
+- **Gradient Boosting**
+- **K-Means** + courbe elbow + score silhouette
+- **MLP PyTorch** avec BatchNorm, Dropout, scheduler LR
+- **Modèle hybride** : Cinétique + réseau correcteur de résidus
 
 ---
 
-## Données de test
+## Variables d'environnement
 
-Fichier `docs/examples/sample_kinetics.csv` :
-- Cinétique ordre 1 : k ≈ 0.30 s⁻¹, C₀ ≈ 1.0
-- Refroidissement Newton : T₀=100°C, T_env=20°C, h≈0.04 W/K
+Créer un fichier `.env` dans `/backend` :
+```env
+API_HOST=0.0.0.0
+API_PORT=8000
+LOG_LEVEL=INFO
+CORS_ORIGINS=*
+```
 
 ---
 
-*PhysioAI Lab v2.0 — Architecture modulaire, prête pour évolution SaaS*
+## Évolution SaaS
+
+Pour déployer en production :
+1. **Backend** : Docker + Gunicorn sur Railway/Render/AWS
+2. **Frontend** : Azure Static Web Apps ou CDN
+3. **Auth** : JWT + OAuth2 (ajouter middleware FastAPI)
+4. **Base de données** : PostgreSQL + SQLAlchemy pour persistance des modèles
+5. **Queue** : Celery + Redis pour les entraînements longs (DL)
+

@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Environnements virtuels
+venv/
+.venv/
+env/
+.env
+
+# Logs
+backend/logs/*.log
+logs/
+
+# Modèles sauvegardés
+*.pt
+*.pth
+*.pkl
+*.joblib
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Données sensibles
+.env.local
+.env.production
+secrets.json
+
+# Node (si usage npm pour frontend)
+node_modules/
+package-lock.json
+
+# Garder le dossier logs mais ignorer les fichiers .log
+backend/logs/*.log
+!backend/logs/.gitkeep

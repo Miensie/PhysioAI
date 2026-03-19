@@ -1,221 +1,151 @@
 """
-================================================================
-modeling/regression.py
-Modèles de régression : linéaire, polynomiale, Ridge, Lasso
-================================================================
+PhysioAI Lab — Regression Module
+Implémente: linéaire, log, exponentielle, puissance, polynomiale, Ridge, Lasso
 """
 
-import logging
-from typing import Any
-
+from __future__ import annotations
 import numpy as np
 from scipy.optimize import curve_fit
-from scipy.stats import pearsonr, t as t_dist
+from scipy.stats import pearsonr
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import r2_score, mean_squared_error
 
-logger = logging.getLogger("physioai.regression")
-
-
-# ── Utilitaires ──────────────────────────────────────────────────────────────
-
-def _safe_array(data: list) -> np.ndarray:
-    """Convertit une liste en tableau numpy 1D propre."""
-    arr = np.asarray(data, dtype=np.float64).ravel()
-    if np.any(~np.isfinite(arr)):
-        raise ValueError("Les données contiennent des NaN ou Inf.")
-    return arr
+from utils.data_utils import r_squared, rmse, mae
 
 
-def _stats(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    """Calcule les métriques de performance standard."""
-    r2   = float(r2_score(y_true, y_pred))
-    rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
-    mae  = float(np.mean(np.abs(y_true - y_pred)))
-    return {"r2": r2, "rmse": rmse, "mae": mae}
+# ─── Fonctions de modèle ──────────────────────────────────────────────────────
+
+def _linear(x, a, b):       return a * x + b
+def _logarithmic(x, a, b):  return a * np.log(x) + b
+def _exponential(x, a, b):  return a * np.exp(b * x)
+def _power(x, a, b):        return a * np.power(np.abs(x), b)
 
 
-# ── Régression linéaire ───────────────────────────────────────────────────────
+# ─── Classe principale ────────────────────────────────────────────────────────
 
-def linear_regression(x_data: list, y_data: list) -> dict[str, Any]:
-    """
-    Régression linéaire simple avec intervalle de confiance.
+class RegressionEngine:
+    """Moteur de régression multi-modèles."""
 
-    Retourne :
-        slope, intercept, r2, rmse, mae, p_value,
-        ci_slope, ci_intercept, y_pred, residuals
-    """
-    x = _safe_array(x_data)
-    y = _safe_array(y_data)
-    n = len(x)
+    MODELS = ["linear", "logarithmic", "exponential", "power", "polynomial", "ridge", "lasso"]
 
-    if n < 3:
-        raise ValueError("Minimum 3 points requis pour la régression linéaire.")
+    def fit(self, x: np.ndarray, y: np.ndarray, model_type: str, **kwargs) -> dict:
+        """Ajuste le modèle spécifié sur les données (x, y)."""
+        dispatch = {
+            "linear":       self._fit_linear,
+            "logarithmic":  self._fit_logarithmic,
+            "exponential":  self._fit_exponential,
+            "power":        self._fit_power,
+            "polynomial":   self._fit_polynomial,
+            "ridge":        self._fit_ridge,
+            "lasso":        self._fit_lasso,
+        }
+        if model_type not in dispatch:
+            raise ValueError(f"Modèle inconnu: {model_type}. Choix: {self.MODELS}")
+        return dispatch[model_type](x, y, **kwargs)
 
-    # Régression via numpy (plus robuste pour les stats)
-    model  = LinearRegression()
-    X      = x.reshape(-1, 1)
-    model.fit(X, y)
+    # ── Courbes non-linéaires via curve_fit ─────────────────────────────────
 
-    slope     = float(model.coef_[0])
-    intercept = float(model.intercept_)
-    y_pred    = model.predict(X)
+    def _curve_fit_result(self, func, x, y, label: str, p0=None) -> dict:
+        popt, pcov = curve_fit(func, x, y, p0=p0, maxfev=10000)
+        y_pred = func(x, *popt)
+        perr = np.sqrt(np.diag(pcov))
+        return {
+            "model": label,
+            "parameters": {f"p{i}": float(v) for i, v in enumerate(popt)},
+            "std_errors": {f"p{i}": float(v) for i, v in enumerate(perr)},
+            "r2": r_squared(y, y_pred),
+            "rmse": rmse(y, y_pred),
+            "mae": mae(y, y_pred),
+            "y_pred": y_pred.tolist(),
+        }
 
-    # Statistiques
-    perf = _stats(y, y_pred)
-    residuals = (y - y_pred).tolist()
+    def _fit_linear(self, x, y, **kw) -> dict:
+        return self._curve_fit_result(_linear, x, y, "linear", p0=[1, 0])
 
-    # Intervalle de confiance à 95% sur slope et intercept
-    s2  = np.sum((y - y_pred) ** 2) / (n - 2)
-    Sxx = np.sum((x - x.mean()) ** 2)
-    se_slope     = float(np.sqrt(s2 / Sxx))
-    se_intercept = float(np.sqrt(s2 * (1/n + x.mean()**2 / Sxx)))
-    t_crit       = float(t_dist.ppf(0.975, df=n - 2))
-    ci_slope     = [slope - t_crit * se_slope,     slope + t_crit * se_slope]
-    ci_intercept = [intercept - t_crit * se_intercept, intercept + t_crit * se_intercept]
+    def _fit_logarithmic(self, x, y, **kw) -> dict:
+        if np.any(x <= 0):
+            raise ValueError("x doit être > 0 pour la régression logarithmique.")
+        return self._curve_fit_result(_logarithmic, x, y, "logarithmic", p0=[1, 0])
 
-    # p-valeur de la pente
-    t_stat  = slope / (se_slope + 1e-15)
-    p_value = float(2 * (1 - t_dist.cdf(abs(t_stat), df=n - 2)))
+    def _fit_exponential(self, x, y, **kw) -> dict:
+        return self._curve_fit_result(_exponential, x, y, "exponential", p0=[1, 0.01])
 
-    # Corrélation de Pearson
-    r_pearson, _ = pearsonr(x, y)
+    def _fit_power(self, x, y, **kw) -> dict:
+        if np.any(x <= 0):
+            raise ValueError("x doit être > 0 pour la régression puissance.")
+        return self._curve_fit_result(_power, x, y, "power", p0=[1, 1])
 
-    logger.info(f"Régression linéaire : slope={slope:.4f}, R²={perf['r2']:.4f}")
+    # ── Modèles sklearn ─────────────────────────────────────────────────────
 
-    return {
-        "type":         "linear",
-        "slope":        slope,
-        "intercept":    intercept,
-        "r_pearson":    float(r_pearson),
-        "ci_slope":     ci_slope,
-        "ci_intercept": ci_intercept,
-        "p_value":      p_value,
-        "n":            n,
-        "x":            x.tolist(),
-        "y_true":       y.tolist(),
-        "y_pred":       y_pred.tolist(),
-        "residuals":    residuals,
-        **perf,
-    }
+    def _fit_polynomial(self, x, y, degree: int = 3, **kw) -> dict:
+        X = x.reshape(-1, 1)
+        model = make_pipeline(PolynomialFeatures(degree), LinearRegression())
+        model.fit(X, y)
+        y_pred = model.predict(X)
+        coefs = model.named_steps["linearregression"].coef_.tolist()
+        intercept = float(model.named_steps["linearregression"].intercept_)
+        return {
+            "model": "polynomial",
+            "degree": degree,
+            "coefficients": coefs,
+            "intercept": intercept,
+            "r2": r_squared(y, y_pred),
+            "rmse": rmse(y, y_pred),
+            "mae": mae(y, y_pred),
+            "y_pred": y_pred.tolist(),
+        }
 
+    def _fit_ridge(self, x, y, alpha: float = 1.0, degree: int = 3, **kw) -> dict:
+        X = x.reshape(-1, 1)
+        model = make_pipeline(PolynomialFeatures(degree), Ridge(alpha=alpha))
+        model.fit(X, y)
+        y_pred = model.predict(X)
+        return {
+            "model": "ridge",
+            "alpha": alpha,
+            "degree": degree,
+            "coefficients": model.named_steps["ridge"].coef_.tolist(),
+            "intercept": float(model.named_steps["ridge"].intercept_),
+            "r2": r_squared(y, y_pred),
+            "rmse": rmse(y, y_pred),
+            "mae": mae(y, y_pred),
+            "y_pred": y_pred.tolist(),
+        }
 
-# ── Régression polynomiale ───────────────────────────────────────────────────
+    def _fit_lasso(self, x, y, alpha: float = 0.1, degree: int = 3, **kw) -> dict:
+        X = x.reshape(-1, 1)
+        model = make_pipeline(PolynomialFeatures(degree), Lasso(alpha=alpha, max_iter=10000))
+        model.fit(X, y)
+        y_pred = model.predict(X)
+        return {
+            "model": "lasso",
+            "alpha": alpha,
+            "degree": degree,
+            "coefficients": model.named_steps["lasso"].coef_.tolist(),
+            "intercept": float(model.named_steps["lasso"].intercept_),
+            "r2": r_squared(y, y_pred),
+            "rmse": rmse(y, y_pred),
+            "mae": mae(y, y_pred),
+            "y_pred": y_pred.tolist(),
+        }
 
-def polynomial_regression(x_data: list, y_data: list, degree: int = 2) -> dict[str, Any]:
-    """
-    Régression polynomiale de degré arbitraire avec cross-validation LOO pour
-    sélection automatique du degré optimal si degree='auto'.
-    """
-    x = _safe_array(x_data)
-    y = _safe_array(y_data)
-    n = len(x)
-
-    degree = int(degree)
-    degree = max(1, min(degree, min(n - 1, 10)))
-
-    # Pipeline : PolynomialFeatures → StandardScaler → LinearRegression
-    pipeline = Pipeline([
-        ("poly",   PolynomialFeatures(degree=degree, include_bias=True)),
-        ("scaler", StandardScaler()),
-        ("lr",     LinearRegression()),
-    ])
-
-    X = x.reshape(-1, 1)
-    pipeline.fit(X, y)
-    y_pred = pipeline.predict(X)
-
-    # Coefficients dans l'espace polynomial original
-    lr     = pipeline.named_steps["lr"]
-    coeffs = lr.coef_.tolist()
-    perf   = _stats(y, y_pred)
-
-    # Courbe de fit dense pour affichage
-    x_dense   = np.linspace(x.min(), x.max(), 200)
-    y_dense   = pipeline.predict(x_dense.reshape(-1, 1))
-
-    logger.info(f"Régression polynomiale degré {degree} : R²={perf['r2']:.4f}")
-
-    return {
-        "type":       "polynomial",
-        "degree":     degree,
-        "coeffs":     coeffs,
-        "x":          x.tolist(),
-        "y_true":     y.tolist(),
-        "y_pred":     y_pred.tolist(),
-        "residuals":  (y - y_pred).tolist(),
-        "x_curve":    x_dense.tolist(),
-        "y_curve":    y_dense.tolist(),
-        **perf,
-    }
-
-
-# ── Régression Ridge / Lasso ─────────────────────────────────────────────────
-
-def regularized_regression(
-    x_data: list, y_data: list,
-    method: str = "ridge", alpha: float = 1.0, degree: int = 2,
-) -> dict[str, Any]:
-    """
-    Régression régularisée (Ridge ou Lasso) avec features polynomiales.
-    Utile pour éviter le surapprentissage sur des jeux de données petits.
-    """
-    x = _safe_array(x_data)
-    y = _safe_array(y_data)
-
-    reg_cls = Ridge if method.lower() == "ridge" else Lasso
-    pipeline = Pipeline([
-        ("poly",   PolynomialFeatures(degree=degree, include_bias=True)),
-        ("scaler", StandardScaler()),
-        ("reg",    reg_cls(alpha=alpha)),
-    ])
-
-    X = x.reshape(-1, 1)
-    pipeline.fit(X, y)
-    y_pred = pipeline.predict(X)
-    perf   = _stats(y, y_pred)
-
-    logger.info(f"Régression {method} α={alpha} deg={degree} : R²={perf['r2']:.4f}")
-
-    return {
-        "type":      method,
-        "alpha":     alpha,
-        "degree":    degree,
-        "x":         x.tolist(),
-        "y_true":    y.tolist(),
-        "y_pred":    y_pred.tolist(),
-        "residuals": (y - y_pred).tolist(),
-        **perf,
-    }
-
-
-# ── Régression multi-variables ───────────────────────────────────────────────
-
-def multivariate_regression(X_data: list[list], y_data: list) -> dict[str, Any]:
-    """
-    Régression linéaire multiple (n variables explicatives).
-    """
-    X = np.asarray(X_data, dtype=np.float64)
-    y = _safe_array(y_data)
-
-    if X.shape[0] != len(y):
-        raise ValueError(f"X ({X.shape[0]} lignes) et y ({len(y)} lignes) incompatibles.")
-
-    model  = LinearRegression()
-    model.fit(X, y)
-    y_pred = model.predict(X)
-    perf   = _stats(y, y_pred)
-
-    return {
-        "type":        "multivariate",
-        "coeffs":      model.coef_.tolist(),
-        "intercept":   float(model.intercept_),
-        "n_features":  X.shape[1],
-        "n_samples":   X.shape[0],
-        "y_true":      y.tolist(),
-        "y_pred":      y_pred.tolist(),
-        "residuals":   (y - y_pred).tolist(),
-        **perf,
-    }
+    def fit_all(self, x: np.ndarray, y: np.ndarray) -> list[dict]:
+        """Essaie tous les modèles et retourne les résultats triés par R²."""
+        results = []
+        for model_type in ["linear", "polynomial", "ridge", "lasso"]:
+            try:
+                res = self.fit(x, y, model_type)
+                results.append(res)
+            except Exception as e:
+                results.append({"model": model_type, "error": str(e)})
+        for model_type in ["logarithmic", "exponential", "power"]:
+            try:
+                res = self.fit(x, y, model_type)
+                results.append(res)
+            except Exception as e:
+                results.append({"model": model_type, "error": str(e)})
+        valid = [r for r in results if "r2" in r]
+        valid.sort(key=lambda r: r["r2"], reverse=True)
+        return valid + [r for r in results if "r2" not in r]

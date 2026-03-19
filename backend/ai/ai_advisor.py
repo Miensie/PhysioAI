@@ -1,333 +1,290 @@
 """
-================================================================
-ai/ai_advisor.py
-Conseiller IA intelligent :
-  - Analyse automatique des données (linéarité, bruit, complexité)
-  - Recommandation du modèle optimal
-  - Rapport structuré avec scores de confiance
-================================================================
+PhysioAI Lab — AI Advisor Module
+Analyse les données, détecte patterns et recommande le modèle optimal.
+Retourne un rapport structuré avec explications.
 """
 
-import logging
-from typing import Any
-
+from __future__ import annotations
 import numpy as np
 import pandas as pd
-from scipy.stats import (
-    kurtosis,
-    normaltest,
-    pearsonr,
-    shapiro,
-    skew,
-    spearmanr,
-)
-from sklearn.ensemble import RandomForestRegressor
+from scipy import stats
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import r2_score
+from typing import Any
 
-logger = logging.getLogger("physioai.advisor")
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  ANALYSE DES DONNÉES
-# ══════════════════════════════════════════════════════════════════════════════
-
-def analyze_data_properties(X_data: list[list], y_data: list) -> dict[str, Any]:
+class AIAdvisor:
     """
-    Analyse complète des propriétés statistiques d'un jeu de données.
-
-    Détecte :
-    - Linéarité (R² linéaire)
-    - Bruit / rapport signal/bruit
-    - Complexité non-linéaire (Random Forest vs Linéaire)
-    - Distribution (normalité, skewness, kurtosis)
-    - Corrélations (Pearson, Spearman)
-    - Valeurs aberrantes (IQR)
-    - Multicolinéarité (VIF simplifié)
+    Analyse automatique des données et recommandation de modèle.
+    Détecte : linéarité, bruit, complexité, outliers, tendances.
     """
-    X = np.asarray(X_data, dtype=np.float64)
-    y = np.asarray(y_data, dtype=np.float64).ravel()
 
-    if X.ndim == 1:
-        X = X.reshape(-1, 1)
+    def analyze(self, x: np.ndarray, y: np.ndarray) -> dict:
+        """Point d'entrée principal — retourne un rapport complet."""
+        report = {}
 
-    n, p = X.shape
-    sc = StandardScaler()
-    Xs = sc.fit_transform(X)
+        # ── 1. Stats descriptives ─────────────────────────────────────────
+        report["descriptive_stats"] = self._descriptive(x, y)
 
-    results = {
-        "n_samples":    n,
-        "n_features":   p,
-        "y_stats":      {},
-        "x_stats":      [],
-        "correlations": [],
-        "linearity":    {},
-        "nonlinearity": {},
-        "noise":        {},
-        "outliers":     {},
-        "distribution": {},
-    }
+        # ── 2. Détection de linéarité ─────────────────────────────────────
+        report["linearity"] = self._check_linearity(x, y)
 
-    # ── Statistiques de y ────────────────────────────────────────────────
-    results["y_stats"] = {
-        "mean":     float(np.mean(y)),
-        "std":      float(np.std(y, ddof=1)),
-        "min":      float(y.min()),
-        "max":      float(y.max()),
-        "range":    float(y.max() - y.min()),
-        "cv":       float(np.std(y, ddof=1) / (abs(np.mean(y)) + 1e-10) * 100),
-        "skewness": float(skew(y)),
-        "kurtosis": float(kurtosis(y)),
-    }
+        # ── 3. Détection du bruit ─────────────────────────────────────────
+        report["noise"] = self._estimate_noise(x, y)
 
-    # ── Test de normalité ────────────────────────────────────────────────
-    if n >= 3:
-        try:
-            _, p_norm = shapiro(y) if n <= 5000 else normaltest(y)
-            results["distribution"]["is_normal"] = bool(p_norm > 0.05)
-            results["distribution"]["p_value"]   = float(p_norm)
-        except Exception:
-            results["distribution"]["is_normal"] = None
+        # ── 4. Complexité / non-linéarité ─────────────────────────────────
+        report["complexity"] = self._check_complexity(x, y)
 
-    # ── Statistiques par feature ─────────────────────────────────────────
-    for j in range(p):
-        xj = X[:, j]
-        results["x_stats"].append({
-            "feature":   j,
-            "mean":      float(np.mean(xj)),
-            "std":       float(np.std(xj, ddof=1)),
-            "min":       float(xj.min()),
-            "max":       float(xj.max()),
-        })
+        # ── 5. Outliers ───────────────────────────────────────────────────
+        report["outliers"] = self._detect_outliers(y)
 
-    # ── Corrélations ────────────────────────────────────────────────────
-    for j in range(p):
-        try:
-            r_p, p_p = pearsonr(X[:, j], y)
-            r_s, p_s = spearmanr(X[:, j], y)
-            results["correlations"].append({
-                "feature":  j,
-                "pearson":  float(r_p),
-                "spearman": float(r_s),
-                "p_pearson": float(p_p),
-                "p_spearman": float(p_s),
-            })
-        except Exception:
-            pass
+        # ── 6. Tendances (monotonie, périodicité) ─────────────────────────
+        report["trends"] = self._detect_trends(x, y)
 
-    # ── Linéarité (R² régression linéaire) ──────────────────────────────
-    try:
-        lr = LinearRegression()
-        lr.fit(Xs, y)
-        y_lr  = lr.predict(Xs)
-        r2_lr = float(r2_score(y, y_lr))
-        results["linearity"] = {
-            "r2_linear":    r2_lr,
-            "is_linear":    r2_lr > 0.85,
-            "is_moderately_linear": r2_lr > 0.5,
+        # ── 7. Corrélation ────────────────────────────────────────────────
+        report["correlation"] = self._compute_correlation(x, y)
+
+        # ── 8. Recommandations ────────────────────────────────────────────
+        report["recommendations"] = self._recommend(report)
+
+        return report
+
+    # ─── Méthodes d'analyse ──────────────────────────────────────────────────
+
+    def _descriptive(self, x: np.ndarray, y: np.ndarray) -> dict:
+        def stats_for(arr, name):
+            return {
+                f"{name}_mean": float(np.mean(arr)),
+                f"{name}_std": float(np.std(arr, ddof=1)) if len(arr) > 1 else 0,
+                f"{name}_min": float(np.min(arr)),
+                f"{name}_max": float(np.max(arr)),
+                f"{name}_range": float(np.max(arr) - np.min(arr)),
+                f"{name}_cv": float(np.std(arr, ddof=1) / np.mean(arr)) if np.mean(arr) != 0 else None,
+            }
+        return {
+            "n_points": len(x),
+            **stats_for(x, "x"),
+            **stats_for(y, "y"),
         }
-    except Exception:
-        results["linearity"] = {"r2_linear": None}
 
-    # ── Complexité non-linéaire (RF vs LR) ──────────────────────────────
-    try:
-        if n >= 10:
-            rf = RandomForestRegressor(n_estimators=50, random_state=42, n_jobs=-1)
-            rf.fit(Xs, y)
-            y_rf  = rf.predict(Xs)
-            r2_rf = float(r2_score(y, y_rf))
-            r2_lr = results["linearity"].get("r2_linear", 0) or 0
-            nonlinearity_gain = max(0.0, r2_rf - r2_lr)
-            results["nonlinearity"] = {
-                "r2_rf":             r2_rf,
-                "nonlinearity_gain": nonlinearity_gain,
-                "is_nonlinear":      nonlinearity_gain > 0.1,
-                "feature_importance": rf.feature_importances_.tolist(),
-            }
-    except Exception:
-        results["nonlinearity"] = {}
+    def _check_linearity(self, x: np.ndarray, y: np.ndarray) -> dict:
+        """Compare R² linéaire vs polynomiale deg=3."""
+        X = x.reshape(-1, 1)
+        # Linéaire
+        lr = LinearRegression().fit(X, y)
+        r2_lin = float(r2_score(y, lr.predict(X)))
+        # Polynomiale degré 3
+        poly_pipe = make_pipeline(PolynomialFeatures(3), LinearRegression())
+        poly_pipe.fit(X, y)
+        r2_poly = float(r2_score(y, poly_pipe.predict(X)))
+        # Test de Pearson
+        pearson_r, pearson_p = stats.pearsonr(x, y)
+        is_linear = r2_lin > 0.90 and abs(r2_poly - r2_lin) < 0.05
+        return {
+            "r2_linear": r2_lin,
+            "r2_polynomial_deg3": r2_poly,
+            "pearson_r": float(pearson_r),
+            "pearson_p": float(pearson_p),
+            "is_linear": is_linear,
+            "linearity_score": r2_lin,  # 0→1
+        }
 
-    # ── Bruit ────────────────────────────────────────────────────────────
-    try:
-        if n >= 10:
-            y_lr_p = LinearRegression().fit(Xs, y).predict(Xs) if results["linearity"].get("r2_linear") else y.mean()
-            residuals = y - y_lr_p
-            snr  = float(np.var(y_lr_p) / (np.var(residuals) + 1e-10))
-            noise_pct = float(np.std(residuals) / (np.std(y) + 1e-10) * 100)
-            results["noise"] = {
-                "snr":       snr,
-                "noise_pct": noise_pct,
-                "noisy":     noise_pct > 20,
-            }
-    except Exception:
-        results["noise"] = {}
+    def _estimate_noise(self, x: np.ndarray, y: np.ndarray) -> dict:
+        """Estime le niveau de bruit via les résidus du modèle linéaire."""
+        X = x.reshape(-1, 1)
+        lr = LinearRegression().fit(X, y)
+        residuals = y - lr.predict(X)
+        snr = float(np.var(lr.predict(X)) / (np.var(residuals) + 1e-12))
+        noise_level = "low" if snr > 10 else "medium" if snr > 2 else "high"
+        return {
+            "residuals_std": float(np.std(residuals)),
+            "snr_db": float(10 * np.log10(snr + 1e-12)),
+            "snr_ratio": snr,
+            "noise_level": noise_level,
+        }
 
-    # ── Outliers (IQR) ───────────────────────────────────────────────────
-    q1, q3 = np.percentile(y, [25, 75])
-    iqr     = q3 - q1
-    lo, hi  = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-    outlier_idx = np.where((y < lo) | (y > hi))[0].tolist()
-    results["outliers"] = {
-        "n_outliers": len(outlier_idx),
-        "pct":        float(len(outlier_idx) / n * 100),
-        "indices":    outlier_idx[:20],
-    }
+    def _check_complexity(self, x: np.ndarray, y: np.ndarray) -> dict:
+        """R² pour différents degrés polynomiaux — indicateur de complexité."""
+        X = x.reshape(-1, 1)
+        r2_by_degree = {}
+        for deg in [1, 2, 3, 4, 5]:
+            try:
+                pipe = make_pipeline(PolynomialFeatures(deg), LinearRegression())
+                pipe.fit(X, y)
+                r2_by_degree[deg] = float(r2_score(y, pipe.predict(X)))
+            except Exception:
+                r2_by_degree[deg] = None
 
-    return results
+        # Complexité basée sur le degré nécessaire pour R²>0.95
+        complexity_score = 1
+        for deg, r2 in r2_by_degree.items():
+            if r2 and r2 > 0.95:
+                complexity_score = deg
+                break
 
+        return {
+            "r2_by_degree": r2_by_degree,
+            "optimal_polynomial_degree": complexity_score,
+            "complexity_label": "low" if complexity_score <= 1 else "medium" if complexity_score <= 3 else "high",
+        }
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  RECOMMANDATION DE MODÈLE
-# ══════════════════════════════════════════════════════════════════════════════
+    def _detect_outliers(self, y: np.ndarray) -> dict:
+        """Détection des outliers via Z-score et IQR."""
+        z_scores = np.abs(stats.zscore(y))
+        z_outliers = int(np.sum(z_scores > 3))
+        Q1, Q3 = np.percentile(y, 25), np.percentile(y, 75)
+        IQR = Q3 - Q1
+        iqr_outliers = int(np.sum((y < Q1 - 1.5 * IQR) | (y > Q3 + 1.5 * IQR)))
+        return {
+            "z_score_outliers": z_outliers,
+            "iqr_outliers": iqr_outliers,
+            "has_outliers": z_outliers > 0 or iqr_outliers > 0,
+            "outlier_fraction": float(max(z_outliers, iqr_outliers) / len(y)),
+        }
 
-def recommend_model(
-    X_data: list[list], y_data: list,
-    domain: str = "auto",  # "chemistry" | "physics" | "process" | "auto"
-) -> dict[str, Any]:
-    """
-    Analyse les données et recommande automatiquement :
-    1. Le meilleur modèle statistique
-    2. Le modèle physique le plus adapté (si domain fourni)
-    3. Le modèle IA le plus adapté
-    4. La stratégie hybride
+    def _detect_trends(self, x: np.ndarray, y: np.ndarray) -> dict:
+        """Détection de monotonie et de la direction de tendance."""
+        spearman_r, spearman_p = stats.spearmanr(x, y)
+        is_monotone = abs(spearman_r) > 0.85
+        kendall_tau, kendall_p = stats.kendalltau(x, y)
+        return {
+            "spearman_r": float(spearman_r),
+            "spearman_p": float(spearman_p),
+            "kendall_tau": float(kendall_tau),
+            "kendall_p": float(kendall_p),
+            "is_monotone": is_monotone,
+            "trend_direction": "increasing" if spearman_r > 0 else "decreasing",
+        }
 
-    Retourne un rapport structuré avec scores de confiance.
-    """
-    # ── Analyse des propriétés ──────────────────────────────────────────
-    props = analyze_data_properties(X_data, y_data)
-    n     = props["n_samples"]
-    p     = props["n_features"]
+    def _compute_correlation(self, x: np.ndarray, y: np.ndarray) -> dict:
+        pearson_r, pearson_p = stats.pearsonr(x, y)
+        spearman_r, spearman_p = stats.spearmanr(x, y)
+        return {
+            "pearson_r": float(pearson_r),
+            "pearson_r2": float(pearson_r ** 2),
+            "pearson_p": float(pearson_p),
+            "spearman_r": float(spearman_r),
+            "spearman_p": float(spearman_p),
+            "correlation_strength": (
+                "very_strong" if abs(pearson_r) > 0.9
+                else "strong" if abs(pearson_r) > 0.7
+                else "moderate" if abs(pearson_r) > 0.5
+                else "weak"
+            ),
+        }
 
-    r2_lin     = props["linearity"].get("r2_linear", 0) or 0
-    r2_rf      = props["nonlinearity"].get("r2_rf", 0) or 0
-    nl_gain    = props["nonlinearity"].get("nonlinearity_gain", 0) or 0
-    is_noisy   = props["noise"].get("noisy", False)
-    noise_pct  = props["noise"].get("noise_pct", 0) or 0
-    n_outliers = props["outliers"].get("n_outliers", 0)
+    # ─── Recommandations ─────────────────────────────────────────────────────
 
-    recommendations = []
+    def _recommend(self, report: dict) -> dict:
+        lin = report["linearity"]
+        noise = report["noise"]
+        complexity = report["complexity"]
+        outliers = report["outliers"]
+        n = report["descriptive_stats"]["n_points"]
 
-    # ── Modèles statistiques ─────────────────────────────────────────────
-    if r2_lin > 0.90:
-        recommendations.append({
-            "model":       "Régression linéaire",
-            "type":        "statistical",
-            "confidence":  min(0.99, r2_lin),
-            "reason":      f"R²={r2_lin:.3f} excellent. Relation linéaire forte détectée.",
-            "params":      {"type": "linear"},
-        })
-    elif r2_lin > 0.60:
-        recommendations.append({
-            "model":       "Régression polynomiale (degré 2-3)",
-            "type":        "statistical",
-            "confidence":  0.75,
-            "reason":      f"R² linéaire modéré ({r2_lin:.3f}). Une courbe polynomiale peut améliorer l'ajustement.",
-            "params":      {"type": "polynomial", "degree": 2},
-        })
+        recommendations = []
 
-    # ── Modèles physiques ────────────────────────────────────────────────
-    if domain in ("chemistry", "auto") and p == 1:
-        corr = props["correlations"][0] if props["correlations"] else {}
-        r_sp = abs(corr.get("spearman", 0) or 0)
-        recommendations.append({
-            "model":      "Cinétique chimique (ordre 1)",
-            "type":       "physical",
-            "confidence": min(0.85, r_sp),
-            "reason":     "Données à 1 variable : cinétique ordre 1 (exponentielle décroissante) recommandée. Vérifier si C(t) décroît exponentiellement.",
-            "params":     {"type": "kinetics", "order": 1},
-        })
-
-    if domain in ("physics", "process", "auto") and p == 1:
-        recommendations.append({
-            "model":      "Diffusion (Fick 1D)",
-            "type":       "physical",
-            "confidence": 0.60,
-            "reason":     "Pour données spatiales/temporelles : loi de Fick recommandée si profil de concentration observé.",
-            "params":     {"type": "diffusion"},
-        })
-
-    # ── Modèles ML ───────────────────────────────────────────────────────
-    if n >= 30:
-        if nl_gain > 0.15:
-            conf = min(0.95, 0.6 + nl_gain)
+        # ── Régression ──────────────────────────────────────────────────────
+        if lin["is_linear"]:
             recommendations.append({
-                "model":      "Random Forest",
-                "type":       "machine_learning",
-                "confidence": conf,
-                "reason":     f"Gain de non-linéarité RF/LR = {nl_gain:.3f}. Relation complexe détectée, RF recommandé.",
-                "params":     {"type": "random_forest", "n_estimators": 100},
+                "type": "regression",
+                "model": "linear",
+                "confidence": "high",
+                "reason": f"R²={lin['r2_linear']:.3f} — relation quasi-linéaire détectée.",
+            })
+        elif complexity["optimal_polynomial_degree"] <= 3:
+            recommendations.append({
+                "type": "regression",
+                "model": "polynomial",
+                "params": {"degree": complexity["optimal_polynomial_degree"]},
+                "confidence": "high",
+                "reason": f"Degré polynomial optimal = {complexity['optimal_polynomial_degree']}.",
+            })
+        else:
+            recommendations.append({
+                "type": "regression",
+                "model": "ridge" if n < 100 else "random_forest",
+                "confidence": "medium",
+                "reason": "Relation complexe — régression régularisée ou ensemble recommandé.",
             })
 
-        if p > 1:
+        # ── Modèle physique ─────────────────────────────────────────────────
+        x_range = report["descriptive_stats"]["x_range"]
+        y_mean = report["descriptive_stats"]["y_mean"]
+        if report["trends"]["is_monotone"] and lin["linearity_score"] < 0.95:
+            if report["descriptive_stats"].get("y_min", 0) >= 0:
+                recommendations.append({
+                    "type": "physical",
+                    "model": "chemical_kinetics_order1",
+                    "confidence": "medium",
+                    "reason": "Décroissance monotone positive — cinétique d'ordre 1 probable (C = C₀·e^{-kt}).",
+                })
             recommendations.append({
-                "model":      "SVR (RBF kernel)",
-                "type":       "machine_learning",
-                "confidence": 0.72,
-                "reason":     f"{p} features : SVR adapté aux espaces de haute dimension avec peu de données.",
-                "params":     {"type": "svr", "kernel": "rbf"},
+                "type": "physical",
+                "model": "diffusion_fick",
+                "confidence": "low",
+                "reason": "Tendance monotone compatible avec un processus de diffusion.",
             })
 
-    # ── Deep Learning ────────────────────────────────────────────────────
-    if n >= 100:
-        dl_conf = min(0.90, 0.5 + n / 2000 + nl_gain * 0.3)
-        recommendations.append({
-            "model":      "Réseau MLP (PyTorch)",
-            "type":       "deep_learning",
-            "confidence": dl_conf,
-            "reason":     f"n={n} ≥ 100 : Deep Learning applicable. Bon pour captures de patterns complexes.",
-            "params":     {"type": "mlp", "hidden_dims": _suggest_arch(n, p)},
-        })
+        # ── Deep Learning ───────────────────────────────────────────────────
+        if n >= 50 and complexity["complexity_label"] == "high":
+            recommendations.append({
+                "type": "deep_learning",
+                "model": "neural_network",
+                "params": {"hidden_dims": [64, 64, 32], "epochs": 300},
+                "confidence": "medium",
+                "reason": "Données suffisantes et relation complexe — réseau de neurones adapté.",
+            })
 
-    # ── Hybride ──────────────────────────────────────────────────────────
-    if n >= 30 and domain != "auto":
-        recommendations.append({
-            "model":      "Modèle hybride (physique + IA)",
-            "type":       "hybrid",
-            "confidence": 0.80,
-            "reason":     "Recommandé quand le mécanisme physique est partiellement connu. Le réseau apprend uniquement les résidus.",
-            "params":     {"type": "hybrid"},
-        })
+        # ── Hybride ─────────────────────────────────────────────────────────
+        if n >= 30 and noise["noise_level"] in ("medium", "high"):
+            recommendations.append({
+                "type": "hybrid",
+                "model": "physics_informed_nn",
+                "confidence": "medium",
+                "reason": "Bruit significatif + structure physique possible — modèle hybride recommandé.",
+            })
 
-    # ── Avertissements ───────────────────────────────────────────────────
-    warnings = []
-    if n < 20:
-        warnings.append(f"Peu d'échantillons (n={n}). Préférer des modèles simples avec peu de paramètres.")
-    if is_noisy:
-        warnings.append(f"Données bruitées ({noise_pct:.1f}% bruit). Considérer un filtrage ou régularisation.")
-    if n_outliers > 0:
-        warnings.append(f"{n_outliers} valeur(s) aberrante(s) détectée(s). Vérifier avant modélisation.")
-    if p > n // 5:
-        warnings.append(f"Ratio features/échantillons élevé (p={p}, n={n}). Risque de surapprentissage.")
+        # Trier par confiance
+        order = {"high": 0, "medium": 1, "low": 2}
+        recommendations.sort(key=lambda r: order.get(r["confidence"], 3))
 
-    # ── Tri par confiance ────────────────────────────────────────────────
-    recommendations.sort(key=lambda r: r["confidence"], reverse=True)
-    best = recommendations[0] if recommendations else None
+        return {
+            "primary_recommendation": recommendations[0] if recommendations else None,
+            "all_recommendations": recommendations,
+            "data_quality": self._rate_data_quality(report, n),
+            "warnings": self._generate_warnings(report),
+        }
 
-    logger.info(f"Conseil IA : {best['model'] if best else 'Aucun'} (n={n}, p={p}, R²_lin={r2_lin:.3f})")
+    def _rate_data_quality(self, report: dict, n: int) -> dict:
+        score = 100
+        if n < 10:
+            score -= 30
+        elif n < 30:
+            score -= 15
+        if report["outliers"]["outlier_fraction"] > 0.1:
+            score -= 20
+        if report["noise"]["noise_level"] == "high":
+            score -= 15
+        elif report["noise"]["noise_level"] == "medium":
+            score -= 5
+        return {
+            "score": max(0, score),
+            "label": "excellent" if score >= 80 else "good" if score >= 60 else "fair" if score >= 40 else "poor",
+            "n_points": n,
+        }
 
-    return {
-        "analysis":        props,
-        "best_model":      best,
-        "recommendations": recommendations,
-        "warnings":        warnings,
-        "summary": {
-            "n":          n,
-            "p":          p,
-            "r2_linear":  r2_lin,
-            "r2_rf":      r2_rf,
-            "nonlinear":  nl_gain > 0.1,
-            "noisy":      is_noisy,
-            "n_outliers": n_outliers,
-        },
-    }
-
-
-def _suggest_arch(n: int, p: int) -> list[int]:
-    """Suggère une architecture MLP en fonction de la taille du jeu de données."""
-    if n < 200:
-        return [32, 16]
-    elif n < 1000:
-        return [64, 32, 16]
-    else:
-        return [128, 64, 32]
+    def _generate_warnings(self, report: dict) -> list[str]:
+        warnings = []
+        n = report["descriptive_stats"]["n_points"]
+        if n < 10:
+            warnings.append(f"⚠️ Seulement {n} points — résultats peu fiables. Augmenter les données.")
+        if report["outliers"]["has_outliers"]:
+            warnings.append(f"⚠️ {report['outliers']['z_score_outliers']} outliers détectés (Z-score > 3).")
+        if report["noise"]["noise_level"] == "high":
+            warnings.append("⚠️ Bruit élevé — envisager un filtrage préalable.")
+        if report["correlation"]["pearson_p"] > 0.05:
+            warnings.append("⚠️ Corrélation x↔y non significative (p > 0.05).")
+        return warnings

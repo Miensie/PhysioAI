@@ -1,19 +1,55 @@
-# render.yaml — À placer à la RACINE du dépôt GitHub
+# render.yaml — Configuration Render.com
+# Déploie automatiquement le backend FastAPI + le frontend statique
+# Doc : https://render.com/docs/blueprint-spec
+
 services:
+
+  # ── Backend FastAPI ─────────────────────────────────────────────────────────
   - type: web
-    name: physioai-backend
+    name: physioai-lab-api
     runtime: python
-    region: frankfurt
-    plan: free
-    # PAS de rootDir — les commandes gèrent le chemin
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    region: frankfurt          # plus proche d'Abidjan que us-east
+    plan: free                 # starter gratuit — changer en "standard" pour prod
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
+
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: LOG_LEVEL
+        value: INFO
+      - key: CORS_ORIGINS
+        value: "*"             # Remplacer par l'URL Render du frontend en prod
       - key: PORT
-        value: 10000
-      - key: ENVIRONMENT
-        value: production
+        generateValue: false   # Render injecte $PORT automatiquement
+
+    autoDeploy: true           # Re-déploie à chaque push sur main
+
+  # ── Frontend statique ───────────────────────────────────────────────────────
+  - type: web
+    name: physioai-lab-frontend
+    runtime: static
+    region: frankfurt
+    plan: free
+    rootDir: frontend
+    staticPublishPath: .       # Sert tous les fichiers du dossier frontend/
+
+    headers:
+      - path: /*
+        name: Access-Control-Allow-Origin
+        value: "*"
+      - path: /*.js
+        name: Cache-Control
+        value: public, max-age=3600
+      - path: /*.css
+        name: Cache-Control
+        value: public, max-age=3600
+
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /taskpane.html
+
     autoDeploy: true
