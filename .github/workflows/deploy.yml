@@ -73,12 +73,12 @@ jobs:
       - name: Prepare site content
         run: |
           mkdir -p _site
-          cp -r frontend/scripts  _site/
-          cp -r frontend/styles   _site/
-          cp    frontend/taskpane.html _site/
+          cp -r scripts  _site/
+          cp -r styles   _site/
+          cp    taskpane.html _site/
           cp    manifest.xml      _site/
           [ -d docs ] && cp -r docs _site/ || true
-          [ -f index.html ] && cp index.html _site/ || cp frontend/taskpane.html _site/index.html
+          [ -f index.html ] && cp index.html _site/ || cp taskpane.html _site/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
