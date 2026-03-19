@@ -4,6 +4,16 @@
  */
 "use strict";
 
+// ── Garde : vérifie que Chart.js est disponible avant toute opération ────────
+function _assertChart() {
+  if (typeof Chart === "undefined") {
+    throw new Error(
+      "Chart.js non chargé. Vérifiez votre connexion internet " +
+      "ou rechargez le panneau (F5 / Ctrl+R)."
+    );
+  }
+}
+
 const CHART_COLORS = {
   green:  "#00FFB3",
   cyan:   "#00D4FF",
@@ -69,6 +79,7 @@ function _baseOptions(title = "", xLabel = "x", yLabel = "y") {
 
 /** Graphique scatter + ligne de fit */
 function renderScatterFit(canvasId, x, y_true, y_pred = null, x_curve = null, y_curve = null, title = "", xLabel = "x", yLabel = "y") {
+  _assertChart();
   _destroy(canvasId);
   const ctx = document.getElementById(canvasId)?.getContext("2d");
   if (!ctx) return;
@@ -116,6 +127,7 @@ function renderScatterFit(canvasId, x, y_true, y_pred = null, x_curve = null, y_
 
 /** Graphique prédit vs réel */
 function renderPredVsReal(canvasId, y_true, y_pred, title = "Prédit vs Réel") {
+  _assertChart();
   _destroy(canvasId);
   const ctx = document.getElementById(canvasId)?.getContext("2d");
   if (!ctx) return;
@@ -152,6 +164,7 @@ function renderPredVsReal(canvasId, y_true, y_pred, title = "Prédit vs Réel") 
 
 /** Graphique de simulation temporelle (multi-courbes) */
 function renderTimeSeries(canvasId, curves, title = "", xLabel = "t", yLabel = "C") {
+  _assertChart();
   _destroy(canvasId);
   const ctx = document.getElementById(canvasId)?.getContext("2d");
   if (!ctx) return;
@@ -178,6 +191,7 @@ function renderTimeSeries(canvasId, curves, title = "", xLabel = "t", yLabel = "
 
 /** Graphique d'importance des features (barres horizontales) */
 function renderFeatureImportance(canvasId, names, importance, title = "VIP / Importance") {
+  _assertChart();
   _destroy(canvasId);
   const ctx = document.getElementById(canvasId)?.getContext("2d");
   if (!ctx) return;
@@ -207,6 +221,7 @@ function renderFeatureImportance(canvasId, names, importance, title = "VIP / Imp
 
 /** Courbe de loss (entraînement DL) */
 function renderLossCurve(canvasId, epochs, losses, title = "Courbe de perte") {
+  _assertChart();
   _destroy(canvasId);
   const ctx = document.getElementById(canvasId)?.getContext("2d");
   if (!ctx) return;
@@ -232,6 +247,7 @@ function renderLossCurve(canvasId, epochs, losses, title = "Courbe de perte") {
 
 /** Heatmap de corrélation (simulée avec Chart.js) */
 function renderCorrChart(canvasId, cols, corrMatrix) {
+  _assertChart();
   _destroy(canvasId);
   const ctx = document.getElementById(canvasId)?.getContext("2d");
   if (!ctx) return;
@@ -268,6 +284,7 @@ function renderCorrChart(canvasId, cols, corrMatrix) {
 
 /** Graphique hybride : physique + résidu NN + total */
 function renderHybridChart(canvasId, t, y_true, y_physics, y_hybrid) {
+  _assertChart();
   _destroy(canvasId);
   const ctx = document.getElementById(canvasId)?.getContext("2d");
   if (!ctx) return;

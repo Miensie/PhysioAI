@@ -7,8 +7,6 @@
 
   <!-- Office.js -->
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-  <!-- Chart.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -577,11 +575,50 @@
 <!-- Toasts -->
 <div id="toast-ct"></div>
 
-<!-- Scripts -->
-<script src="scripts/api.js"></script>
-<script src="scripts/charts.js"></script>
-<script src="scripts/excel.js"></script>
-<script src="scripts/app.js"></script>
+<!-- Scripts — Chart.js DOIT être chargé avant charts.js -->
+<!-- Fallback CDN jsDelivr si cdnjs ne répond pas -->
+<script>
+  (function() {
+    var cdns = [
+      "https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js",
+      "https://unpkg.com/chart.js@4.4.4/dist/chart.umd.min.js"
+    ];
+    var idx = 0;
+    function tryLoad() {
+      if (idx >= cdns.length) {
+        console.error("Chart.js introuvable sur tous les CDN.");
+        return;
+      }
+      var s = document.createElement("script");
+      s.src = cdns[idx];
+      s.onload = function() {
+        console.log("Chart.js chargé depuis : " + cdns[idx]);
+        loadAppScripts();
+      };
+      s.onerror = function() {
+        console.warn("CDN échoué : " + cdns[idx]);
+        idx++;
+        tryLoad();
+      };
+      document.head.appendChild(s);
+    }
+    function loadAppScripts() {
+      ["scripts/api.js","scripts/charts.js","scripts/excel.js","scripts/app.js"]
+        .forEach(function(src) {
+          var s = document.createElement("script");
+          s.src = src;
+          document.body.appendChild(s);
+        });
+    }
+    // Attendre que le DOM soit prêt
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", tryLoad);
+    } else {
+      tryLoad();
+    }
+  })();
+</script>
 
 </body>
 </html>
