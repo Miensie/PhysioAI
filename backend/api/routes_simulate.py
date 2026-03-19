@@ -42,7 +42,6 @@ async def simulate(req: SimulateRequest):
                 t_end=req.t_end, n_points=req.n_points, V=p.get("V", 1.0),
             )
         elif m == "cstr":
-            import numpy as np
             tau_range = np.logspace(-1, 3, req.n_points).tolist()
             res = simulate_cstr_steady_state(
                 C0=p.get("C0", 1.0), k=p.get("k", 0.1),

@@ -55,7 +55,6 @@ def linear_regression(x_data: list, y_data: list) -> dict[str, Any]:
         raise ValueError("Minimum 3 points requis pour la régression linéaire.")
 
     # Régression via numpy (plus robuste pour les stats)
-    coeffs = np.polyfit(x, 1, deg=1)          # pour compatibilité
     model  = LinearRegression()
     X      = x.reshape(-1, 1)
     model.fit(X, y)
