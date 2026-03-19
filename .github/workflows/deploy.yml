@@ -58,7 +58,7 @@ jobs:
         run: |
           BACKEND_URL="${{ secrets.BACKEND_URL }}"
           if [ -n "$BACKEND_URL" ]; then
-            sed -i "s|http://localhost:8000|${BACKEND_URL}|g" frontend/scripts/api.js
+            sed -i "s|http://localhost:8000|${BACKEND_URL}|g" scripts/api.js
             echo "✅ Backend URL injectée : $BACKEND_URL"
           else
             echo "⚠️  BACKEND_URL non défini — localhost conservé"
