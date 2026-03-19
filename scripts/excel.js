@@ -142,8 +142,11 @@ const ExcelIO = {
   },
 
   _title(sheet, row, text, w) {
-    const range = sheet.getRangeByIndexes(row, 0, 1, Math.max(w, 1));
-    range.values = [[text]];
+    const width = Math.max(w, 1);
+    // values DOIT avoir exactement width colonnes — remplir avec ""
+    const rowData = [text, ...new Array(width - 1).fill("")];
+    const range = sheet.getRangeByIndexes(row, 0, 1, width);
+    range.values = [rowData];
     range.getCell(0, 0).format.font.bold  = true;
     range.getCell(0, 0).format.font.color = "#FFFFFF";
     range.getCell(0, 0).format.font.size  = 11;
@@ -157,7 +160,7 @@ const ExcelIO = {
       const sheet = await this._sheet(ctx, "PhysioAI_Régression");
       let row = 0;
 
-      row = this._title(sheet, row, `Régression ${result.type?.toUpperCase() || ""}`, 4);
+      row = this._title(sheet, row, `Régression ${result.type?.toUpperCase() || ""}`, 2);
       row = this._header(sheet, row, ["Métrique", "Valeur"]);
       const metrics = [
         ["R²",    this._n(result.r2, 4)],
@@ -172,7 +175,7 @@ const ExcelIO = {
       row = this._write(sheet, row, 0, metrics);
       row += 2;
 
-      row = this._title(sheet, row, "Données et prédictions", 3);
+      row = this._title(sheet, row, "Données et prédictions", 4);
       row = this._header(sheet, row, ["Échantillon", "y réel", "y prédit", "Résidu"]);
       const predData = (result.y_true || []).map((y, i) => [
         sampleNames?.[i] || `S${i+1}`,
@@ -192,7 +195,7 @@ const ExcelIO = {
       const sheet = await this._sheet(ctx, "PhysioAI_Physique");
       let row = 0;
 
-      row = this._title(sheet, row, `Modèle : ${result.model || "physique"}`, 4);
+      row = this._title(sheet, row, `Modèle : ${result.model || "physique"}`, 2);
       row = this._header(sheet, row, ["Paramètre", "Valeur"]);
       const params = Object.entries(result.params || {}).map(([k, v]) => [k, this._n(v, 6)]);
       if (result.r2 !== null && result.r2 !== undefined) params.push(["R²", this._n(result.r2, 4)]);
@@ -236,7 +239,7 @@ const ExcelIO = {
       const sheet = await this._sheet(ctx, "PhysioAI_ML");
       let row = 0;
 
-      row = this._title(sheet, row, `Résultats ${result.model?.toUpperCase() || "ML"}`, 3);
+      row = this._title(sheet, row, `Résultats ${result.model?.toUpperCase() || "ML"}`, 2);
       row = this._header(sheet, row, ["Métrique", "Valeur"]);
       const metrics = [
         ["R²", this._n(result.r2, 4)],
