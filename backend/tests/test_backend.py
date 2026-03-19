@@ -201,7 +201,7 @@ def test_simulate_kinetics():
         "t_start": 0.0, "t_end": 20.0, "n_points": 100,
     })
     assert r.status_code == 200
-    assert len(r.json()["t_sim"]) == 100
+    assert len(r.json()["t_sim"]) == 100  # n_points=100 passé dans la requête
 
 
 def test_simulate_batch():

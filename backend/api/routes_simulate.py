@@ -33,7 +33,7 @@ async def simulate(req: SimulateRequest):
             order = int(p.get("order", 1))
             C0    = p.get("C0", 1.0)
             k     = p.get("k", 0.1)
-            res   = simulate_kinetics(t.tolist(), order=order, C0_guess=C0, k_guess=k, t_max=req.t_end)
+            res   = simulate_kinetics(t.tolist(), order=order, C0_guess=C0, k_guess=k, t_max=req.t_end, n_points=req.n_points)
 
         elif m == "batch_reactor":
             res = simulate_batch_reactor(
