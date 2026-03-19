@@ -60,3 +60,32 @@ class HybridRequest(BaseModel):
 class SimulationRequest(BaseModel):
     model: str; params: Dict[str, Any]
     t_start: float = 0.0; t_end: float = 100.0; n_points: int = 200
+
+
+# ── Schemas manquants pour les routes physiques ───────────────────────────────
+
+class PFRRequest(BaseModel):
+    z: List[float]
+    F: float = 1.0
+    A: float = 0.1
+    C0: float = 1.0
+    k: float = 0.1
+    order: int = Field(1, ge=0, le=2)
+
+class DarcyRequest(BaseModel):
+    dP: float = 1000.0   # Pa
+    mu: float = 0.001    # Pa·s (eau à 20°C)
+    k_perm: float = 1e-12  # m²
+    L: float = 1.0       # m
+    A: float = 0.01      # m²
+
+class AntoineRequest(BaseModel):
+    T_range: List[float]
+    A: float = 8.07131   # Eau (NIST)
+    B: float = 1730.63
+    C: float = 233.426
+
+class RTDRequest(BaseModel):
+    t: List[float]
+    tau: float = 10.0
+    N: int = Field(3, ge=1, le=20)
