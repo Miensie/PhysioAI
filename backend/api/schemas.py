@@ -120,3 +120,12 @@ class GlobalDecisionRequest(BaseModel):
     physical_result:   Optional[Dict[str, Any]] = None
     ai_advisor_result: Optional[Dict[str, Any]] = None
     language:        str  = Field("fr", description="fr|en")
+
+
+# ── Prédiction automatique (tous modèles) ─────────────────────────────────────
+class PredictBestRequest(BaseModel):
+    X_train:   List[List[float]]
+    y_train:   List[float]
+    X_predict: List[List[float]]
+    degree:    int   = Field(3, ge=2, le=10)
+    alpha:     float = Field(1.0, gt=0)
