@@ -70,9 +70,9 @@ Aller sur [render.com](https://render.com) → Sign Up avec votre compte GitHub.
 
 5. Cliquer **Create Web Service**
 6. ⏳ Attendre le build (~3-5 min)
-7. Copier l'URL générée : `https://physioai-lab-api.onrender.com`
+7. Copier l'URL générée : `https://physioai-backend-6iqm.onrender.com`
 
-> ✅ Tester : `https://physioai-lab-api.onrender.com/health`
+> ✅ Tester : `https://physioai-backend-6iqm.onrender.com/health`
 > Réponse attendue : `{"status": "healthy"}`
 
 ---
