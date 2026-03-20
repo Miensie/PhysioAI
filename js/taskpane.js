@@ -589,23 +589,61 @@ function renderAIReport(res) {
     </div>
   `;
 
-  // ── Classement des 7 régressions testées ──────────────────────────────────
-  const regRanking = recs.regression_ranking || [];
+  // ── Classement des 7 régressions ────────────────────────────────────────────
+  const regRanking  = recs.regression_ranking  || [];
+  // ── Classement des 11 modèles physiques ──────────────────────────────────
+  const physRanking = recs.physical_ranking    || [];
+  const physScores  = res.physical_scores      || {};
+
   if (regRanking.length) {
     const rankEl = document.createElement("div");
     rankEl.className = "ai-section";
-    let rankHtml = `<div class="ai-section-title">📊 Classement des 7 régressions testées</div>`;
+    let rankHtml = `<div class="ai-section-title">📊 Classement — 7 régressions testées</div>`;
     regRanking.forEach((r, i) => {
       const color = r.r2 > 0.95 ? 'var(--green)' : r.r2 > 0.80 ? 'var(--amber)' : 'var(--text-muted)';
-      const best  = i === 0 ? ' 🏆' : '';
+      const crown = i === 0 ? ' 🏆' : '';
       rankHtml += `<div class="metric-row">
-        <span class="metric-label">#${i+1} ${r.model}${best}</span>
-        <span style="font-size:9px;color:var(--text-muted);flex:1;padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${r.equation || ''}</span>
-        <span class="metric-value" style="color:${color}">R²=${r.r2?.toFixed(4) ?? '—'}</span>
+        <span class="metric-label">#${i+1} ${r.model}${crown}</span>
+        <span style="font-size:9px;color:var(--text-muted);flex:1;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${r.equation||''}</span>
+        <span class="metric-value" style="color:${color}">R²=${r.r2?.toFixed(4)??'—'}</span>
       </div>`;
     });
     rankEl.innerHTML = rankHtml;
     el.appendChild(rankEl);
+  }
+
+  if (physRanking.length) {
+    const physEl = document.createElement("div");
+    physEl.className = "ai-section";
+    const nTested = physScores.n_tested || physRanking.length;
+    let physHtml = `<div class="ai-section-title">⚗ Classement — ${nTested} modèles physiques testés</div>`;
+
+    // Résumé du meilleur
+    const bp = physScores.best_physical || physRanking[0];
+    if (bp && bp.r2 >= 0) {
+      const bColor = bp.r2 > 0.95 ? 'var(--green)' : bp.r2 > 0.80 ? 'var(--amber)' : 'var(--red)';
+      physHtml += `<div style="background:var(--bg-base);border:1px solid var(--border);border-left:3px solid var(--cyan);border-radius:4px;padding:6px 8px;margin-bottom:6px">
+        <div style="font-size:10px;font-weight:700;color:var(--text-primary)">
+          🏆 ${bp.label || bp.model}
+          <span style="color:${bColor};font-family:var(--font-mono);margin-left:8px">R²=${bp.r2?.toFixed(4)}</span>
+        </div>
+        <div style="font-size:9px;color:var(--text-muted);margin-top:2px">${bp.equation||''}</div>
+        <div style="font-size:9px;color:var(--cyan);margin-top:2px">${bp.domain||''}</div>
+      </div>`;
+    }
+
+    // Classement complet
+    physRanking.forEach((r, i) => {
+      const color = r.r2 > 0.95 ? 'var(--green)' : r.r2 > 0.80 ? 'var(--amber)' : 'var(--text-muted)';
+      const crown = i === 0 ? ' 🏆' : '';
+      physHtml += `<div class="metric-row">
+        <span class="metric-label" style="font-size:9px">#${i+1} ${r.label||r.model}${crown}</span>
+        <span style="font-size:8px;color:var(--text-muted);flex:1;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${r.equation||''}</span>
+        <span class="metric-value" style="color:${color};font-size:10px">R²=${r.r2?.toFixed(4)??'—'}</span>
+      </div>`;
+    });
+    physEl.innerHTML = physHtml;
+    el.appendChild(physEl);
   }
 
   // Sauvegarder pour Gemini
@@ -1354,6 +1392,33 @@ function renderDecisionReport(res, isGemini) {
   }
 
   // Validation croisée
+  // Classement modèles physiques (décision rapide)
+  const physRankingDec = r.classement_physique || [];
+  const bestPhysDec    = r.meilleur_modele_physique || {};
+  if (physRankingDec.length) {
+    html += `<div class="dr-section">
+      <div class="dr-title">⚗ Classement — Modèles Physiques</div>`;
+    if (bestPhysDec.label && bestPhysDec.r2 != null) {
+      const bColor = bestPhysDec.r2>0.95?'var(--green)':bestPhysDec.r2>0.8?'var(--amber)':'var(--red)';
+      html += `<div style="background:var(--bg-input);border-left:3px solid var(--cyan);border-radius:0 4px 4px 0;padding:6px 8px;margin-bottom:8px">
+        <div style="font-size:10px;font-weight:700;color:var(--text-primary)">
+          🏆 ${bestPhysDec.label}
+          <span style="color:${bColor};font-family:var(--font-mono);margin-left:8px">R²=${bestPhysDec.r2?.toFixed(4)}</span>
+        </div>
+        <div style="font-size:9px;color:var(--text-muted);margin-top:2px">${bestPhysDec.equation||''}</div>
+      </div>`;
+    }
+    physRankingDec.slice(0,8).forEach((r,i) => {
+      const col = r.r2>0.95?'var(--green)':r.r2>0.8?'var(--amber)':'var(--text-muted)';
+      html += `<div class="metric-row">
+        <span class="metric-label" style="font-size:9px">#${i+1} ${r.label||r.model}${i===0?' 🏆':''}</span>
+        <span style="font-size:8px;color:var(--text-muted);flex:1;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${r.equation||''}</span>
+        <span class="metric-value" style="color:${col}">R²=${r.r2?.toFixed(4)??'—'}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
   if (vc && Object.keys(vc).length) {
     const points = vc.points_forts || vc.strengths || [];
     const concerns = vc.points_attention || vc.concerns || [];

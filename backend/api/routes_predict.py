@@ -134,6 +134,10 @@ async def decision_quick(req: GlobalDecisionRequest):
                   .get("metrics") or req.regression_result.get("metrics") or {})
             reg_detail = f"Régression externe : {bm} (R²={m.get('r2','?')})"
 
+        phys_scores  = adv.get("physical_scores", {})
+        phys_ranking = phys_scores.get("ranking", [])
+        best_phys    = phys_scores.get("best_physical") or {}
+
         return {
             "status":   "success",
             "language": req.language,
@@ -141,44 +145,56 @@ async def decision_quick(req: GlobalDecisionRequest):
             "report": {
                 "decision_globale": {
                     "verdict": (
-                        f"Meilleure régression : {s.get('best_regression','?')} "
-                        f"(R²={s.get('best_r2',0):.4f}). "
-                        + (f"Recommandation : {primary.get('model','?')}"
-                           if primary else "")
+                        f"Meilleure regression : {s.get('best_regression','?')} "
+                        f"(R2={s.get('best_r2_regression',0):.4f}). "
+                        f"Meilleur modele physique : {s.get('best_physical_label','?')} "
+                        f"(R2={s.get('best_r2_physical',0):.4f})."
                     ),
-                    "confiance":              primary.get("confidence", "?"),
-                    "score_qualite_donnees":  (
+                    "confiance":             primary.get("confidence", "?"),
+                    "score_qualite_donnees": (
                         adv.get("recommendations", {})
                         .get("data_quality", {}).get("score", 0)
                     ),
                 },
-                "classement_regressions": ranking,        # ← les 7 modèles classés
+                "classement_regressions":  ranking,
+                "classement_physique":     phys_ranking,
+                "meilleur_modele_physique": {
+                    "modele":   best_phys.get("model"),
+                    "label":    best_phys.get("label"),
+                    "r2":       best_phys.get("r2"),
+                    "equation": best_phys.get("equation"),
+                    "params":   best_phys.get("params"),
+                },
                 "interpretation_physique": {
-                    "tendance":    s.get("trend", "?"),
-                    "bruit":       s.get("noise", "?"),
-                    "n_points":    s.get("n_points", 0),
+                    "tendance":          s.get("trend", "?"),
+                    "bruit":             s.get("noise", "?"),
+                    "n_points":          s.get("n_points", 0),
+                    "n_modeles_testes":  phys_scores.get("n_tested", 0),
+                    "n_modeles_valides": phys_scores.get("n_successful", 0),
                 },
                 "recommandations_prioritaires": [
                     {
                         "priorite":      i + 1,
                         "action":        r.get("model", ""),
+                        "label":         r.get("label", r.get("model", "")),
                         "type":          r.get("type", ""),
                         "r2":            r.get("r2", ""),
+                        "equation":      r.get("equation", ""),
                         "justification": r.get("reason", ""),
                         "confiance":     r.get("confidence", ""),
                     }
                     for i, r in enumerate(
                         adv.get("recommendations", {})
-                        .get("all_recommendations", [])[:5]
+                        .get("all_recommendations", [])[:6]
                     )
                 ],
-                "scores_regressions": adv.get("regression_scores", {}),  # ← scores bruts
-                "alertes": warnings,
-                "contexte_externe": reg_detail,
-                "resume_executif": adv.get("priority_action", ""),
+                "scores_regressions": adv.get("regression_scores", {}),
+                "alertes":            warnings,
+                "contexte_externe":   reg_detail,
+                "resume_executif":    adv.get("priority_action", ""),
                 "note": (
                     "Analyse locale — pour rapport Gemini complet "
-                    "utilisez /decision/global avec une clé Google AI Studio."
+                    "utilisez /decision/global avec une cle Google AI Studio."
                 ),
             },
         }
