@@ -106,17 +106,28 @@ def fit_kinetics(
     perr = np.sqrt(np.diag(pcov))
     C_fit = model(ta, C0_fit, k_fit)
 
+    # Courbe lissée sur 200 points (domaine étendu de 20% pour la visualisation)
+    t_smooth = np.linspace(0, float(ta.max()) * 1.2, 200)
+    C_smooth = model(t_smooth, C0_fit, k_fit)
+
     return {
-        "model":  f"kinetics_order{order}",
-        "order":  order,
-        "C0":     C0_fit,
-        "k":      k_fit,
-        "C0_std": float(perr[0]),
-        "k_std":  float(perr[1]),
-        "r2":     round(_r2(Ca, C_fit), 6),
-        "t":      ta.tolist(),
-        "t_fit":  ta.tolist(),
-        "C_fit":  C_fit.tolist(),
+        "model":    f"kinetics_order{order}",
+        "equation": (f"C(t) = {C0_fit:.4f} * exp(-{k_fit:.4f}*t)" if order == 1
+                     else f"C(t) = {C0_fit:.4f} / (1 + {k_fit:.4f}*{C0_fit:.4f}*t)" if order == 2
+                     else f"C(t) = max({C0_fit:.4f} - {k_fit:.4f}*t, 0)"),
+        "order":    order,
+        "C0":       C0_fit,
+        "k":        k_fit,
+        "C0_std":   float(perr[0]),
+        "k_std":    float(perr[1]),
+        "r2":       round(_r2(Ca, C_fit), 6),
+        # Données expérimentales
+        "t":        ta.tolist(),
+        "C":        Ca.tolist(),          # ← données brutes avec bruit
+        # Courbe calibrée
+        "t_fit":    t_smooth.tolist(),    # ← 200 points lisses
+        "C_fit":    C_smooth.tolist(),    # ← courbe lissée
+        "params": {"C0": C0_fit, "k": k_fit},
     }
 
 
