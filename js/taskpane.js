@@ -476,7 +476,7 @@ function renderPhysicalResult(res, doFit) {
   el.style.display = "block";
   const p = res.params || res;
   let paramsHtml = Object.entries(p)
-    .filter(([k]) => !["t","C","T","E","z","x","y","t_fit","C_fit","P_sat"].includes(k) && !Array.isArray(v))
+    .filter(([k,v]) => !["t","C","T","E","z","x","y","t_fit","C_fit","P_sat"].includes(k) && !Array.isArray(v))
     .map(([k,v]) => `<div class="metric-row">
       <span class="metric-label">${k}</span>
       <span class="metric-value">${typeof v === "number" ? v.toFixed(6) : v}</span>
