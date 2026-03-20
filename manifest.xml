@@ -16,10 +16,9 @@
   <IconUrl DefaultValue="https://miensie.github.io/PhysioAI/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://miensie.github.io/PhysioAI/icon-80.png"/>
 
-  <SupportUrl DefaultValue="https://github.com/PhysioAI"/>
+  <SupportUrl DefaultValue="https://github.com/Miensie/PhysioAI"/>
   <AppDomains>
     <AppDomain>https://miensie.github.io</AppDomain>
-    <AppDomain>https://physioai-backend-6iqm.onrender.com</AppDomain>
   </AppDomains>
 
   <Hosts>
