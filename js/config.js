@@ -12,7 +12,7 @@
 
 (function () {
   // ── Modifier cette ligne avec votre URL Render backend ──────────────────────
-  const RENDER_API_URL = "https://physioai-backend-6iqm.onrender.com";
+  const RENDER_API_URL = "https://physioai-lab-api.onrender.com";
   // ────────────────────────────────────────────────────────────────────────────
 
   const isLocal =

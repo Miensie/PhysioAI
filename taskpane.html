@@ -107,13 +107,26 @@
   <div class="panel-block">
     <label class="field-label">Modèle physique / chimique</label>
     <select class="field-select" id="physicalModel" onchange="updateParamsUI()">
-      <option value="kinetics_order1">⚗ Cinétique Ordre 1 — C(t)=C₀·e⁻ᵏᵗ</option>
-      <option value="kinetics_order2">⚗ Cinétique Ordre 2</option>
-      <option value="kinetics_order0">⚗ Cinétique Ordre 0</option>
-      <option value="cstr">🔄 CSTR Transitoire</option>
-      <option value="diffusion">💧 Diffusion — Loi de Fick</option>
-      <option value="heat">🌡 Transfert de Chaleur — Newton</option>
-      <option value="rtd">🕐 Distribution Temps de Séjour</option>
+      <optgroup label="── Cinétique chimique">
+        <option value="kinetics_order1">⚗ Cinétique Ordre 1 — C(t)=C₀·e⁻ᵏᵗ</option>
+        <option value="kinetics_order2">⚗ Cinétique Ordre 2</option>
+        <option value="kinetics_order0">⚗ Cinétique Ordre 0</option>
+      </optgroup>
+      <optgroup label="── Réacteurs">
+        <option value="cstr">🔄 CSTR Transitoire</option>
+        <option value="pfr">➡ PFR — Réacteur Piston</option>
+      </optgroup>
+      <optgroup label="── Transport">
+        <option value="diffusion">💧 Diffusion — Loi de Fick</option>
+        <option value="darcy">🪨 Écoulement — Loi de Darcy</option>
+      </optgroup>
+      <optgroup label="── Thermique">
+        <option value="heat">🌡 Transfert Chaleur — Newton</option>
+        <option value="antoine">💨 Pression Vapeur — Antoine</option>
+      </optgroup>
+      <optgroup label="── Hydrodynamique">
+        <option value="rtd">🕐 Distribution Temps de Séjour</option>
+      </optgroup>
     </select>
   </div>
 
@@ -177,7 +190,11 @@
       <option value="kinetics_order2">Cinétique Ordre 2</option>
       <option value="kinetics_order0">Cinétique Ordre 0</option>
       <option value="cstr">CSTR Transitoire</option>
-      <option value="heat">Transfert de Chaleur</option>
+      <option value="pfr">PFR — Réacteur Piston</option>
+      <option value="diffusion">Diffusion (Fick)</option>
+      <option value="heat">Transfert Chaleur (Newton)</option>
+      <option value="rtd">Distribution Temps de Séjour</option>
+      <option value="antoine">Pression Vapeur (Antoine)</option>
     </select>
     <button class="btn btn-primary full-width mt-8" id="btnCompare">
       ⚡ Comparer Modèle vs Données

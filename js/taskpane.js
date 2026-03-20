@@ -304,14 +304,26 @@ function renderStats(res) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PHYSICAL_PARAMS = {
-  kinetics_order0: [["C₀ (mol/L)","C0","1.0"],["k (ordre 0)","k","0.05"]],
-  kinetics_order1: [["C₀ (mol/L)","C0","1.0"],["k (s⁻¹)","k","0.05"]],
-  kinetics_order2: [["C₀ (mol/L)","C0","1.0"],["k (L/mol/s)","k","0.05"]],
-  cstr:            [["Volume V (L)","V","10"],["Débit F (L/s)","F","1"],
-                    ["C entrée","C_in","1.0"],["C initial","C0","0"],["k (s⁻¹)","k","0.1"]],
-  diffusion:       [["D (m²/s)","D","1e-9"],["C₀","C0","0"],["Cs (surface)","Cs","1.0"],["t (s)","t","100"]],
-  heat:            [["T₀ (°C)","T0","100"],["T∞ (°C)","T_inf","20"],["h (W/m²K)","h","10"],["m (kg)","m","1"],["Cp","cp","4186"]],
-  rtd:             [["τ moyen (s)","tau","10"],["N réacteurs","N","3"]],
+  // Cinétique
+  kinetics_order0: [["C₀ (mol/L)","C0","1.0"], ["k (mol/L/s)","k","0.05"]],
+  kinetics_order1: [["C₀ (mol/L)","C0","1.0"], ["k (s⁻¹)","k","0.05"]],
+  kinetics_order2: [["C₀ (mol/L)","C0","1.0"], ["k (L/mol/s)","k","0.05"]],
+  // Réacteurs
+  cstr: [["Volume V (L)","V","10"], ["Débit F (L/s)","F","1"],
+         ["C entrée (mol/L)","C_in","1.0"], ["C initial","C0","0"], ["k (s⁻¹)","k","0.1"]],
+  pfr:  [["Débit F (L/s)","F","1"], ["Section A (m²)","A","0.1"],
+         ["C₀ (mol/L)","C0","1.0"], ["k","k","0.1"], ["Longueur L (m)","L","1.0"]],
+  // Transport
+  diffusion: [["D (m²/s)","D","1e-9"], ["C₀ initial","C0","0"],
+              ["Cs (surface)","Cs","1.0"], ["t (s)","t","100"]],
+  darcy:     [["ΔP (Pa)","dP","1000"], ["Viscosité μ (Pa·s)","mu","0.001"],
+              ["Perméabilité k (m²)","k_perm","1e-12"], ["Longueur L (m)","L","1.0"], ["Section A (m²)","A","0.01"]],
+  // Thermique
+  heat:    [["T₀ (°C)","T0","100"], ["T∞ (°C)","T_inf","20"],
+            ["h·A (W/K)","h","10"], ["Masse m (kg)","m","1"], ["Cp (J/kg/K)","cp","4186"]],
+  antoine: [["A (NIST)","A","8.07131"], ["B (NIST)","B","1730.63"], ["C (NIST)","C","233.426"]],
+  // Hydrodynamique
+  rtd: [["Temps séjour τ (s)","tau","10"], ["Nb réacteurs N","N","3"]],
 };
 
 function updateParamsUI() {
@@ -345,11 +357,11 @@ function getPhysicalParams() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function runPhysical() {
-  const model   = document.getElementById("physicalModel").value;
-  const params  = getPhysicalParams();
-  const tStart  = parseFloat(document.getElementById("tStart").value) || 0;
-  const tEnd    = parseFloat(document.getElementById("tEnd").value) || 100;
-  const doFit   = document.getElementById("fitToggle").checked;
+  const model  = document.getElementById("physicalModel").value;
+  const params = getPhysicalParams();
+  const tStart = parseFloat(document.getElementById("tStart").value) || 0;
+  const tEnd   = parseFloat(document.getElementById("tEnd").value)   || 100;
+  const doFit  = document.getElementById("fitToggle").checked;
 
   if (doFit && !state.xData.length) {
     showToast("Chargez des données pour calibration", "error"); return;
@@ -358,17 +370,34 @@ async function runPhysical() {
   showLoader("Simulation en cours…");
   try {
     let res;
-    if (doFit) {
-      // Calibration cinétique
+
+    if (doFit && model.startsWith("kinetics")) {
+      // Calibration sur données Excel
       const order = model.includes("order0") ? 0 : model.includes("order2") ? 2 : 1;
       res = await apiPost("/physical/kinetics", {
         t: state.xData, C: state.yData,
-        C0: params.C0 || 1, k: params.k || 0.1,
+        C0: params.C0 || 1.0, k: params.k || 0.1,
         order, fit: true,
       });
+    } else if (model === "darcy") {
+      // Darcy = calcul scalaire direct, pas de simulation temporelle
+      res = await apiPost("/physical/darcy", params);
+    } else if (model === "antoine") {
+      // Antoine = domaine de température
+      res = await apiPost("/physical/antoine", {
+        T_range: Array.from({length:200}, (_,i) => tStart + i*(tEnd-tStart)/199),
+        A: params.A || 8.07131, B: params.B || 1730.63, C: params.C || 233.426,
+      });
+    } else if (model === "pfr") {
+      res = await apiPost("/physical/pfr", {
+        z: Array.from({length:200}, (_,i) => i*(params.L||1.0)/199),
+        F: params.F, A: params.A, C0: params.C0, k: params.k, order: 1,
+      });
     } else {
+      // Tous les autres via /simulate (génère le domaine t automatiquement)
       res = await apiPost("/simulate", { model, params, t_start: tStart, t_end: tEnd, n_points: 200 });
     }
+
     renderPhysicalResult(res, doFit);
     showToast("✓ Simulation terminée", "success");
   } catch(e) {
@@ -381,8 +410,23 @@ function renderPhysicalResult(res, doFit) {
   chartCard.style.display = "block";
   destroyChart("physicalChart");
 
-  const t = res.t || res.z || res.x;
-  const y = res.C || res.T || res.E;
+  // Darcy est scalaire — afficher seulement les métriques
+  if (res.model === "darcy_flow") {
+    const el = document.getElementById("physResult");
+    el.style.display = "block";
+    document.getElementById("physChart").style.display = "none";
+    el.innerHTML = `<h4>Loi de Darcy</h4>
+      <div class="equation">${res.equation}</div>
+      <div class="metric-row"><span class="metric-label">Débit Q (m³/s)</span>
+        <span class="metric-value">${res.Q.toExponential(4)}</span></div>
+      <div class="metric-row"><span class="metric-label">Vitesse Darcy (m/s)</span>
+        <span class="metric-value">${res.v_darcy.toExponential(4)}</span></div>`;
+    return;
+  }
+  const t = res.t || res.z || res.x || res.T;
+  const y = res.C || res.T_val || res.E || res.P_sat;
+  // Renommer la clé T (température) pour éviter collision avec vecteur T (Antoine)
+  const yData = res.C ?? res.T ?? res.E ?? res.P_sat;
 
   const datasets = [{
     label: doFit ? "Modèle calibré" : "Simulation",
