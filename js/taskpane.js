@@ -678,6 +678,25 @@ function renderAIReport(res) {
     </div>
   `;
 
+  // ── Classement des 7 régressions testées ──────────────────────────────────
+  const regRanking = recs.regression_ranking || [];
+  if (regRanking.length) {
+    const rankEl = document.createElement("div");
+    rankEl.className = "ai-section";
+    let rankHtml = `<div class="ai-section-title">📊 Classement des 7 régressions testées</div>`;
+    regRanking.forEach((r, i) => {
+      const color = r.r2 > 0.95 ? 'var(--green)' : r.r2 > 0.80 ? 'var(--amber)' : 'var(--text-muted)';
+      const best  = i === 0 ? ' 🏆' : '';
+      rankHtml += `<div class="metric-row">
+        <span class="metric-label">#${i+1} ${r.model}${best}</span>
+        <span style="font-size:9px;color:var(--text-muted);flex:1;padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${r.equation || ''}</span>
+        <span class="metric-value" style="color:${color}">R²=${r.r2?.toFixed(4) ?? '—'}</span>
+      </div>`;
+    });
+    rankEl.innerHTML = rankHtml;
+    el.appendChild(rankEl);
+  }
+
   // Sauvegarder pour Gemini
   resultCache.advisor = res;
 }
@@ -1063,26 +1082,41 @@ async function runPrediction() {
 
   showLoader(`Prédiction (${modelType})…`);
   try {
-    const res = await apiPost("/predict/new", {
-      X_train, y_train: state.yData, X_predict,
-      model_type:           modelType,
-      confidence_interval:  ci,
-      degree:               degree,
-      alpha:                alpha,
-      n_estimators:         nEstim,
-      hidden_layers:        dlHidden,
-      epochs:               dlEpochs,
-    });
-
-    renderPredictionResult(res, xPred);
-    showToast(`✓ ${res.predictions.length} valeurs prédites`, "success");
+    let res;
+    if (modelType === "auto") {
+      // Mode auto : teste tous les modèles, retourne le meilleur
+      res = await apiPost("/predict/best", {
+        X_train, y_train: state.yData, X_predict,
+        degree, alpha,
+      });
+      // Extraire le résultat du meilleur modèle pour l'affichage
+      const bestRes = res.best_result;
+      bestRes._all_ranking = res.ranking;
+      bestRes._all_results = res.all_results;
+      bestRes._best_model  = res.best_model;
+      renderPredictionResult(bestRes, xPred, res.ranking);
+    } else {
+      res = await apiPost("/predict/new", {
+        X_train, y_train: state.yData, X_predict,
+        model_type:           modelType,
+        confidence_interval:  ci,
+        degree:               degree,
+        alpha:                alpha,
+        n_estimators:         nEstim,
+        hidden_layers:        dlHidden,
+        epochs:               dlEpochs,
+      });
+      renderPredictionResult(res, xPred);
+    }
+    const nPred = res.best_result?.predictions?.length || res.predictions?.length || 0;
+    showToast(`✓ ${nPred} valeurs prédites`, "success");
   } catch(e) {
     showToast("Erreur prédiction : " + e.message, "error");
   } finally { hideLoader(); }
 }
 
 // ── Afficher les résultats de prédiction ──────────────────────────────────────
-function renderPredictionResult(res, xPred) {
+function renderPredictionResult(res, xPred, ranking) {
   // Graphique
   const chartCard = document.getElementById("predictChartCard");
   chartCard.style.display = "block";
@@ -1161,7 +1195,26 @@ function renderPredictionResult(res, xPred) {
       <span class="metric-value">[${ps.min?.toFixed(4) ?? '—'}, ${ps.max?.toFixed(4) ?? '—'}]</span></div>
     ${res.ci_level ? `<div class="metric-row"><span class="metric-label">Intervalle confiance</span>
       <span class="metric-value cyan">${res.ci_level}</span></div>` : ''}
+    ${res.equation ? `<div class="equation" style="margin-top:6px;font-size:10px">${res.equation}</div>` : ''}
   `;
+
+  // Classement tous modèles (mode auto)
+  if (ranking && ranking.length) {
+    const rankHtml = ranking.map((r, i) => {
+      const color = r.train_r2 > 0.95 ? 'var(--green)'
+                  : r.train_r2 > 0.80 ? 'var(--amber)' : 'var(--text-muted)';
+      const best  = i === 0 ? ' 🏆' : '';
+      return `<div class="metric-row">
+        <span class="metric-label">#${i+1} ${r.model}${best}</span>
+        <span class="metric-value" style="color:${color}">
+          R²=${typeof r.train_r2==='number' ? r.train_r2.toFixed(4) : '—'}
+        </span></div>`;
+    }).join('');
+    elRes.innerHTML += `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+      <div class="field-label" style="margin-bottom:6px">Classement tous modèles</div>
+      ${rankHtml}
+    </div>`;
+  }
 
   // Tableau
   state._lastPredictions = { xPred, res };

@@ -326,16 +326,22 @@
   <div class="panel-block">
     <label class="field-label">Modèle de prédiction</label>
     <select class="field-select" id="predictModel">
-      <optgroup label="── Régression">
-        <option value="linear">Linéaire</option>
-        <option value="polynomial">Polynomiale</option>
-        <option value="ridge">Ridge (L2)</option>
-        <option value="lasso">Lasso (L1)</option>
+      <option value="auto">🔍 Auto — meilleur sur tous les modèles</option>
+      <optgroup label="── Régression analytique">
+        <option value="linear">Linéaire  y=ax+b</option>
+        <option value="logarithmic">Logarithmique  y=a·ln(x)+b</option>
+        <option value="exponential">Exponentielle  y=a·eᵇˣ+c</option>
+        <option value="power">Puissance  y=a·xᵇ</option>
+      </optgroup>
+      <optgroup label="── Régression régularisée">
+        <option value="polynomial">Polynomiale (degré n)</option>
+        <option value="ridge">Ridge L2</option>
+        <option value="lasso">Lasso L1</option>
       </optgroup>
       <optgroup label="── Machine Learning">
-        <option value="random_forest" selected>🌲 Random Forest (+ intervalles)</option>
-        <option value="svr">SVR</option>
-        <option value="gradient_boosting">Gradient Boosting</option>
+        <option value="random_forest" selected>🌲 Random Forest (+ IC 95%)</option>
+        <option value="svr">SVR — Support Vector</option>
+        <option value="gradient_boosting">⚡ Gradient Boosting</option>
       </optgroup>
       <optgroup label="── Deep Learning">
         <option value="mlp">🧠 MLP PyTorch</option>
