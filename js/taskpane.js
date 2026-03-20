@@ -419,21 +419,15 @@ function renderPhysicalResult(res, doFit) {
         <span class="metric-value">${res.v_darcy.toExponential(4)}</span></div>`;
     return;
   }
-  // ── Axe X et Y selon le mode (simulation vs calibration) ───────────────────
-  // Mode calibration : t_fit/C_fit contiennent la courbe LISSÉE (200 pts)
-  //                    t/C contiennent les données brutes avec bruit
-  // Mode simulation  : t/C (ou z/C, x/C, T/P_sat, etc.)
+  // Axe X : temps (t), position (z/x), ou plage température (T pour Antoine)
+  // Priorité : t > z > x — le vecteur T d'Antoine est pris en dernier
+  const tArr = res.t ?? res.z ?? res.x ?? [];
 
-  const hasFitCurve = doFit && Array.isArray(res.t_fit) && Array.isArray(res.C_fit)
-                      && res.t_fit.length > 0;
+  // Axe Y : C (concentration), T (température Newton), E (RTD), P_sat (Antoine)
+  // Utiliser ?? pour ne pas exclure les tableaux vides valides
+  const yArr = res.C ?? res.C_fit ?? res.T ?? res.E ?? res.P_sat ?? [];
 
-  // Courbe à tracer (lissée si calibration, simulée sinon)
-  const tArr = hasFitCurve ? res.t_fit
-               : (res.t ?? res.z ?? res.x ?? []);
-  const yArr = hasFitCurve ? res.C_fit
-               : (res.C ?? res.T ?? res.E ?? res.P_sat ?? []);
-
-  // Sécurité
+  // Sécurité : si l'un des deux est vide, ne pas planter
   if (!Array.isArray(tArr) || !Array.isArray(yArr) || tArr.length === 0) {
     const el = document.getElementById("physResult");
     el.style.display = "block";
@@ -443,121 +437,57 @@ function renderPhysicalResult(res, doFit) {
     return;
   }
 
-  // Label axe Y
-  const yLabel = res.model?.includes("heat")    ? "T (°C)"
-               : res.model?.includes("rtd")     ? "E(t)"
-               : res.model?.includes("antoine") ? "P_sat (mmHg)"
+  // Label axe Y selon le modèle
+  const yLabel = res.model?.includes("heat")   ? "T (°C)"
+               : res.model?.includes("rtd")    ? "E(t)"
+               : res.model?.includes("antoine")? "P_sat (mmHg)"
                : "C (mol/L)";
 
-  // ── Datasets ─────────────────────────────────────────────────────────────
   const datasets = [{
-    label: hasFitCurve
-      ? `Modèle calibré (C0=${res.C0?.toFixed(4)}, k=${res.k?.toFixed(5)})`
-      : `Simulation — ${yLabel}`,
-    data: tArr.map((ti, i) => ({ x: ti, y: yArr[i] })),
+    label: doFit ? "Modèle calibré" : `Simulation — ${yLabel}`,
+    data: tArr.map((ti,i) => ({x: ti, y: yArr[i]})),
     type: "line",
     borderColor: "#ffb700",
-    backgroundColor: "rgba(255,183,0,.08)",
+    backgroundColor: "rgba(255,183,0,.1)",
     borderWidth: 2.5,
     pointRadius: 0,
     tension: 0.4,
     fill: true,
-    order: 1,
   }];
 
-  // ── Points expérimentaux avec bruit (mode calibration) ───────────────────
-  if (doFit) {
-    // Données brutes issues du backend (res.C) ou de state
-    const rawT = Array.isArray(res.t) && res.t.length > 0 ? res.t : state.xData;
-    const rawC = Array.isArray(res.C) && res.C.length > 0 ? res.C : state.yData;
-
-    if (rawT.length > 0) {
-      datasets.unshift({
-        label: `Données expérimentales (n=${rawT.length}, avec bruit)`,
-        data: rawT.map((t, i) => ({ x: t, y: rawC[i] })),
-        backgroundColor: "rgba(0,229,200,.8)",
-        borderColor: "rgba(0,229,200,.4)",
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        pointStyle: "circle",
-        type: "scatter",
-        order: 0,
-      });
-    }
+  if (doFit && state.xData.length) {
+    datasets.unshift({
+      label: "Données expérimentales",
+      data: state.xData.map((x,i) => ({x, y: state.yData[i]})),
+      backgroundColor: "rgba(0,229,200,.7)",
+      pointRadius: 5,
+      type: "scatter",
+    });
   }
 
   const ctx = document.getElementById("physicalChart").getContext("2d");
   state.charts["physicalChart"] = new Chart(ctx, {
     type: "scatter",
     data: { datasets },
-    options: chartOptions(
-      hasFitCurve
-        ? `Calibration ${res.model} — R²=${res.r2?.toFixed(4) ?? '?'}`
-        : (res.model || "Modèle physique")
-    ),
+    options: chartOptions(res.model || "Modèle physique"),
   });
 
   const el = document.getElementById("physResult");
   el.style.display = "block";
-
-  // Paramètres à afficher (exclure les vecteurs)
   const p = res.params || res;
   let paramsHtml = Object.entries(p)
-    .filter(([k, v]) => !["t","C","T","E","z","x","y","t_fit","C_fit","P_sat",
-                          "model","equation","order"].includes(k) && !Array.isArray(v))
-    .map(([k, v]) => `<div class="metric-row">
+    .filter(([k, v]) => !["t","C","T","E","z","x","y","t_fit","C_fit","P_sat"].includes(k) && !Array.isArray(v))
+    .map(([k,v]) => `<div class="metric-row">
       <span class="metric-label">${k}</span>
       <span class="metric-value">${typeof v === "number" ? v.toFixed(6) : v}</span>
     </div>`).join("");
 
-  // Estimation du bruit (si calibration)
-  let noiseHtml = "";
-  if (doFit && Array.isArray(res.C) && Array.isArray(res.C_fit)) {
-    // Calculer sigma résiduel sur les points de calibration aux mêmes t
-    const tFitSet = new Set(res.t_fit?.map(v => +v.toFixed(6)));
-    const residuals = res.t
-      .map((t, i) => {
-        // Interpoler C_fit au point t
-        const idx = res.t_fit?.findIndex(tf => Math.abs(tf - t) < 0.01 * (res.t_fit[1] - res.t_fit[0] + 0.01));
-        const cFit = idx !== undefined && idx >= 0 ? res.C_fit[idx] : null;
-        return cFit !== null ? Math.abs(res.C[i] - cFit) : null;
-      })
-      .filter(r => r !== null);
-    if (residuals.length > 1) {
-      const sigma = Math.sqrt(residuals.reduce((s, r) => s + r*r, 0) / residuals.length);
-      const snr   = Math.abs(res.C0 || 1) / (sigma + 1e-12);
-      noiseHtml = `
-        <div class="metric-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">
-          <span class="metric-label">Bruit σ résiduel</span>
-          <span class="metric-value ${sigma < 0.05 ? 'good' : sigma < 0.15 ? 'warn' : 'bad'}">
-            ${sigma.toFixed(6)}
-          </span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">SNR (signal/bruit)</span>
-          <span class="metric-value">${snr.toFixed(2)}</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Incertitude C0 (σ)</span>
-          <span class="metric-value">${(res.C0_std || 0).toFixed(6)}</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Incertitude k (σ)</span>
-          <span class="metric-value">${(res.k_std || 0).toFixed(6)}</span>
-        </div>`;
-    }
-  }
-
   el.innerHTML = `
     <h4>${res.model || "Résultats"}</h4>
     <div class="equation">${res.equation || ""}</div>
-    ${res.r2 !== undefined ? `
-    <div class="metric-row">
-      <span class="metric-label">R²</span>
-      <span class="metric-value ${res.r2 > 0.9 ? 'good' : 'warn'}">${res.r2.toFixed(6)}</span>
-    </div>` : ""}
+    ${res.r2 !== undefined ? `<div class="metric-row"><span class="metric-label">R²</span>
+      <span class="metric-value ${res.r2>0.9?'good':'warn'}">${res.r2.toFixed(6)}</span></div>` : ""}
     ${paramsHtml}
-    ${noiseHtml}
   `;
 }
 
