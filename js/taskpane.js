@@ -476,7 +476,7 @@ function renderPhysicalResult(res, doFit) {
   el.style.display = "block";
   const p = res.params || res;
   let paramsHtml = Object.entries(p)
-    .filter(([k,v]) => !["t","C","T","E","z","x","y","t_fit","C_fit","P_sat"].includes(k) && !Array.isArray(v))
+    .filter(([k, v]) => !["t","C","T","E","z","x","y","t_fit","C_fit","P_sat"].includes(k) && !Array.isArray(v))
     .map(([k,v]) => `<div class="metric-row">
       <span class="metric-label">${k}</span>
       <span class="metric-value">${typeof v === "number" ? v.toFixed(6) : v}</span>
@@ -1479,10 +1479,10 @@ document.addEventListener("DOMContentLoaded", () => {
 function collectReportData() {
   return {
     meta: {
-      title:       decodeHTML(document.getElementById("reportTitle")?.value    || "Rapport PhysioAI Lab"),
-      author:      decodeHTML(document.getElementById("reportAuthor")?.value   || ""),
-      project:     decodeHTML(document.getElementById("reportProject")?.value  || ""),
-      description: decodeHTML(document.getElementById("reportDescription")?.value || ""),
+      title:       sanitizePDF(document.getElementById("reportTitle")?.value    || "Rapport PhysioAI Lab"),
+      author:      sanitizePDF(document.getElementById("reportAuthor")?.value   || ""),
+      project:     sanitizePDF(document.getElementById("reportProject")?.value  || ""),
+      description: sanitizePDF(document.getElementById("reportDescription")?.value || ""),
       date:        new Date().toLocaleDateString("fr-FR", {
                      day:"2-digit", month:"long", year:"numeric"
                    }),
@@ -1577,28 +1577,68 @@ function previewReport() {
 }
 
 
-// ── Décodage des entités HTML pour le PDF ─────────────────────────────────────
+// ── Decode HTML entities (keep for compatibility) ───────────────────────────────
 function decodeHTML(str) {
   if (!str || typeof str !== "string") return str || "";
-  return str
-    .replace(/&amp;/g,  "&")
-    .replace(/&lt;/g,   "<")
-    .replace(/&gt;/g,   ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g,  "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&eacute;/g, "é")
-    .replace(/&egrave;/g, "è")
-    .replace(/&ecirc;/g,  "ê")
-    .replace(/&agrave;/g, "à")
-    .replace(/&acirc;/g,  "â")
-    .replace(/&ocirc;/g,  "ô")
-    .replace(/&ugrave;/g, "ù")
-    .replace(/&ucirc;/g,  "û")
-    .replace(/&ccedil;/g, "ç")
-    .replace(/&laquo;/g,  "«")
-    .replace(/&raquo;/g,  "»");
+  return str.replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
+            .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ");
 }
+
+// sanitizePDF : converts all Unicode chars unsupported by jsPDF Helvetica to ASCII
+function sanitizePDF(str) {
+  if (!str) return "";
+  str = String(str);
+  str = decodeHTML(str);
+  // Arrows / bullets
+  str = str.replace(/▸/g,">").replace(/▹/g,">").replace(/→/g,"->")
+           .replace(/←/g,"<-").replace(/•/g,"-").replace(/·/g,".")
+           .replace(/×/g,"x").replace(/÷/g,"/");
+  // Superscripts
+  str = str.replace(/⁰/g,"0").replace(/¹/g,"1").replace(/²/g,"2")
+           .replace(/³/g,"3").replace(/⁴/g,"4").replace(/⁵/g,"5")
+           .replace(/⁶/g,"6").replace(/⁷/g,"7").replace(/⁸/g,"8")
+           .replace(/⁹/g,"9").replace(/⁻/g,"-").replace(/⁺/g,"+")
+           .replace(/ⁿ/g,"n").replace(/ᵎ/g,"N");
+  // Subscripts
+  str = str.replace(/₀/g,"0").replace(/₁/g,"1").replace(/₂/g,"2")
+           .replace(/₃/g,"3").replace(/₄/g,"4").replace(/₅/g,"5")
+           .replace(/₆/g,"6").replace(/₇/g,"7").replace(/₈/g,"8")
+           .replace(/₉/g,"9");
+  // Greek letters common in physics
+  str = str.replace(/α/g,"alpha").replace(/β/g,"beta")
+           .replace(/γ/g,"gamma").replace(/δ/g,"delta")
+           .replace(/ε/g,"epsilon").replace(/η/g,"eta")
+           .replace(/θ/g,"theta").replace(/λ/g,"lambda")
+           .replace(/μ/g,"mu").replace(/ν/g,"nu")
+           .replace(/π/g,"pi").replace(/ρ/g,"rho")
+           .replace(/σ/g,"sigma").replace(/τ/g,"tau")
+           .replace(/φ/g,"phi").replace(/ω/g,"omega")
+           .replace(/Δ/g,"Delta").replace(/Σ/g,"Sigma")
+           .replace(/Ω/g,"Omega").replace(/Π/g,"Pi");
+  // Math symbols
+  str = str.replace(/∞/g,"inf").replace(/√/g,"sqrt")
+           .replace(/±/g,"+/-").replace(/≈/g,"~=")
+           .replace(/≠/g,"!=").replace(/≤/g,"<=")
+           .replace(/≥/g,">=");
+  // Degrees / units
+  str = str.replace(/°/g,"deg").replace(/Å/g,"A")
+           .replace(/µ/g,"u");
+  // French accented chars -> ASCII (Helvetica basic latin only)
+  str = str.replace(/[éèêë]/g,"e").replace(/[àâä]/g,"a")
+           .replace(/[îï]/g,"i").replace(/[ôö]/g,"o")
+           .replace(/[ùûü]/g,"u").replace(/[ç]/g,"c")
+           .replace(/[ÉÈÊË]/g,"E").replace(/[ÀÂÄ]/g,"A")
+           .replace(/[ÎÏ]/g,"I").replace(/[ÔÖ]/g,"O")
+           .replace(/[ÙÛÜ]/g,"U").replace(/[Ç]/g,"C");
+  // Quotes / dashes
+  str = str.replace(/[«»]/g,'"')
+           .replace(/[‘’]/g,"'").replace(/[“”]/g,'"')
+           .replace(/–/g,"-").replace(/—/g,"--");
+  // Remove emojis and remaining non-latin1
+  str = str.replace(/[^-ÿ]/g,"?");
+  return str;
+}
+
 
 // ── Génération du PDF via jsPDF (CDN) ─────────────────────────────────────────
 async function generatePDF() {
@@ -1606,7 +1646,7 @@ async function generatePDF() {
   if (!d.data.n) {
     showToast("Chargez des données avant de générer le rapport", "error"); return;
   }
-
+ 
   showLoader("Génération du PDF…");
   try {
     // Charger jsPDF dynamiquement si pas déjà fait
@@ -1616,7 +1656,7 @@ async function generatePDF() {
     if (!window.jspdf?.jsPDF) {
       showToast("Impossible de charger jsPDF", "error"); return;
     }
-
+ 
     const { jsPDF } = window.jspdf;
     const isLandscape = d.meta.orientation === "landscape";
     const doc = new jsPDF({
@@ -1624,13 +1664,13 @@ async function generatePDF() {
       unit: "mm",
       format: d.meta.format.toLowerCase(),
     });
-
+ 
     const pw = doc.internal.pageSize.getWidth();
     const ph = doc.internal.pageSize.getHeight();
     const margin = 15;
     const cw = pw - 2 * margin;
     let y = margin;
-
+ 
     // ── Palette ───────────────────────────────────────────────────────────────
     const COL = {
       amber:  [255, 183,   0],
@@ -1642,7 +1682,7 @@ async function generatePDF() {
       green:  [ 61, 255, 160],
       red:    [255,  90,  90],
     };
-
+ 
     function addPage() {
       if (d.meta.pageNum) {
         doc.setFontSize(8); doc.setTextColor(...COL.muted);
@@ -1653,11 +1693,11 @@ async function generatePDF() {
       doc.addPage();
       y = margin;
     }
-
+ 
     function checkPage(needed = 20) {
       if (y + needed > ph - 20) addPage();
     }
-
+ 
     function sectionTitle(title) {
       checkPage(16);
       doc.setFillColor(...COL.amber);
@@ -1667,22 +1707,22 @@ async function generatePDF() {
       doc.text(title, margin + 6, y + 6);
       y += 12;
     }
-
+ 
     function row(label, value, valueColor) {
       checkPage(7);
       doc.setFontSize(9); doc.setFont(undefined, "normal");
       doc.setTextColor(...COL.muted);
-      doc.text(decodeHTML(String(label || "")), margin, y);
+      doc.text(sanitizePDF(String(label || "")), margin, y);
       doc.setTextColor(...(valueColor || COL.dark));
-      doc.text(decodeHTML(String(value ?? "")), margin + cw * 0.5, y);
+      doc.text(sanitizePDF(String(value ?? "")), margin + cw * 0.5, y);
       doc.setDrawColor(230, 230, 230);
       doc.line(margin, y + 1.5, margin + cw, y + 1.5);
       y += 7;
     }
-
+ 
     function text(txt, size = 9, color) {
       checkPage(6);
-      const clean = decodeHTML(String(txt || ""));
+      const clean = sanitizePDF(String(txt || ""));
       doc.setFontSize(size);
       doc.setFont(undefined, "normal");
       doc.setTextColor(...(color || COL.dark));
@@ -1690,45 +1730,45 @@ async function generatePDF() {
       doc.text(lines, margin, y);
       y += lines.length * (size * 0.45) + 2;
     }
-
+ 
     function separator() {
       checkPage(5);
       doc.setDrawColor(...COL.amber); doc.setLineWidth(0.3);
       doc.line(margin, y, margin + cw, y);
       y += 6;
     }
-
+ 
     // ════════════════════════════════════════════════════
     // PAGE DE GARDE
     // ════════════════════════════════════════════════════
     doc.setFillColor(...COL.dark);
     doc.rect(0, 0, pw, ph, "F");
-
+ 
     // Bande dorée supérieure
     doc.setFillColor(...COL.amber);
     doc.rect(0, 0, pw, 2, "F");
-
+ 
     // Logo / Titre principal
     doc.setFontSize(28); doc.setFont(undefined, "bold");
     doc.setTextColor(...COL.amber);
     doc.text("PhysioAI", pw / 2, 55, {align:"center"});
     doc.setFontSize(28); doc.setTextColor(...COL.light);
     doc.text("Lab", pw / 2 + doc.getTextWidth("PhysioAI") / 2 - 10, 55, {align:"left"});
-
+ 
     doc.setFontSize(11); doc.setFont(undefined, "normal");
     doc.setTextColor(...COL.muted);
     doc.text("Modélisation physico-chimique assistée par IA", pw / 2, 64, {align:"center"});
-
+ 
     // Ligne séparatrice
     doc.setDrawColor(...COL.amber); doc.setLineWidth(0.5);
     doc.line(pw/2 - 40, 70, pw/2 + 40, 70);
-
+ 
     // Titre du rapport
     doc.setFontSize(18); doc.setFont(undefined, "bold");
     doc.setTextColor(...COL.light);
     const titleLines = doc.splitTextToSize(d.meta.title, pw - 40);
     doc.text(titleLines, pw / 2, 82, {align:"center"});
-
+ 
     // Métadonnées
     let yMeta = 105;
     const metas = [
@@ -1745,17 +1785,17 @@ async function generatePDF() {
       doc.text(v, pw/2 - 30, yMeta);
       yMeta += 9;
     });
-
+ 
     if (d.meta.description) {
       doc.setFontSize(9); doc.setTextColor(...COL.muted);
       const descLines = doc.splitTextToSize(d.meta.description, pw - 60);
       doc.text(descLines, pw / 2, yMeta + 5, {align:"center"});
     }
-
+ 
     // Bande dorée inférieure
     doc.setFillColor(...COL.amber);
     doc.rect(0, ph - 2, pw, 2, "F");
-
+ 
     // ════════════════════════════════════════════════════
     // PAGES DE CONTENU
     // ════════════════════════════════════════════════════
@@ -1763,7 +1803,7 @@ async function generatePDF() {
     doc.setFillColor(248, 249, 252);
     doc.rect(0, 0, pw, ph, "F");
     y = margin;
-
+ 
     // ── En-tête page contenu ──────────────────────────────────────────────────
     doc.setFillColor(...COL.dark);
     doc.rect(0, 0, pw, 12, "F");
@@ -1772,7 +1812,7 @@ async function generatePDF() {
     doc.setTextColor(...COL.muted); doc.setFont(undefined, "normal");
     doc.text(d.meta.title, pw - margin, 8, {align:"right"});
     y = 20;
-
+ 
     // ── Table des matières ────────────────────────────────────────────────────
     sectionTitle("Table des matières");
     const tocItems = [];
@@ -1786,10 +1826,10 @@ async function generatePDF() {
     tocItems.forEach(item => {
       checkPage(7);
       doc.setFontSize(9); doc.setTextColor(...COL.dark);
-      doc.text("▸  " + item, margin + 5, y); y += 7;
+      doc.text("> " + sanitizePDF(item), margin + 5, y); y += 7;
     });
     separator();
-
+ 
     // ── 1. DONNÉES ────────────────────────────────────────────────────────────
     if (d.sections.data && d.data.n) {
       sectionTitle("1. Données chargées");
@@ -1808,7 +1848,7 @@ async function generatePDF() {
       }
       separator();
     }
-
+ 
     // ── 2. STATISTIQUES ───────────────────────────────────────────────────────
     if (d.sections.stats && d.data.n) {
       sectionTitle("2. Statistiques descriptives");
@@ -1825,7 +1865,7 @@ async function generatePDF() {
       row("Étendue",      (Math.max(...yd) - Math.min(...yd)).toFixed(6));
       separator();
     }
-
+ 
     // ── 3. RÉGRESSION ─────────────────────────────────────────────────────────
     if (d.sections.regression && d.results.regression) {
       sectionTitle("3. Régression — meilleur modèle");
@@ -1852,17 +1892,17 @@ async function generatePDF() {
           checkPage(7);
           doc.setFontSize(8); doc.setFont(undefined, "normal");
           doc.setTextColor(...COL.muted);
-          doc.text(decodeHTML(`#${i+1}  ${name}`), margin + 5, y);
+          doc.text(sanitizePDF(`#${i+1}  ${name}`), margin + 5, y);
           doc.setTextColor(...col);
           doc.text(`R²=${r2.toFixed(4)}`, margin + 80, y);
           doc.setTextColor(...COL.muted);
-          doc.text(res.equation?.substring(0, 50) || "", margin + 110, y);
+          doc.text(sanitizePDF(res.equation?.substring(0, 50) || ""), margin + 110, y);
           y += 6;
         });
       }
       separator();
     }
-
+ 
     // ── 4. MODÈLE PHYSIQUE ────────────────────────────────────────────────────
     if (d.sections.physical && d.results.physical) {
       sectionTitle("4. Modèle physique");
@@ -1879,7 +1919,7 @@ async function generatePDF() {
       }
       separator();
     }
-
+ 
     // ── 5. ANALYSE IA ─────────────────────────────────────────────────────────
     if (d.sections.ai && d.results.advisor) {
       sectionTitle("5. Analyse IA & classement des régressions");
@@ -1898,11 +1938,11 @@ async function generatePDF() {
           const col = r.r2 > 0.95 ? COL.green : r.r2 > 0.80 ? COL.amber : COL.muted;
           checkPage(7);
           doc.setFontSize(8); doc.setTextColor(...COL.muted);
-          doc.text(decodeHTML(`#${i+1}  ${r.model}`), margin + 5, y);
+          doc.text(sanitizePDF(`#${i+1}  ${r.model}`), margin + 5, y);
           doc.setTextColor(...col);
-          doc.text(`R²=${r.r2?.toFixed(4) || "—"}`, margin + 65, y);
+          doc.text(sanitizePDF(`R²=${r.r2?.toFixed(4) || "—"}`), margin + 65, y);
           doc.setTextColor(...COL.muted);
-          doc.text((r.equation || "").substring(0, 55), margin + 95, y);
+          doc.text(sanitizePDF((r.equation || "").substring(0, 55)), margin + 95, y);
           y += 6;
         });
       }
@@ -1915,7 +1955,7 @@ async function generatePDF() {
           checkPage(10);
           doc.setFontSize(8.5); doc.setFont(undefined, "bold");
           doc.setTextColor(...COL.dark);
-          doc.text(`${i+1}. [${r.type}] ${r.model}`, margin + 5, y);
+          doc.text(sanitizePDF(`${i+1}. [${r.type}] ${r.model}`), margin + 5, y);
           doc.setFont(undefined, "normal"); doc.setTextColor(...COL.muted);
           const reasonLines = doc.splitTextToSize(r.reason || "", cw - 10);
           y += 5;
@@ -1925,7 +1965,7 @@ async function generatePDF() {
       }
       separator();
     }
-
+ 
     // ── 6. PRÉDICTIONS ────────────────────────────────────────────────────────
     if (d.sections.prediction && d.results.prediction) {
       sectionTitle("6. Prédictions");
@@ -1976,7 +2016,7 @@ async function generatePDF() {
       }
       separator();
     }
-
+ 
     // ── 7. DÉCISION GLOBALE ───────────────────────────────────────────────────
     if (d.sections.decision) {
       sectionTitle("7. Décision globale");
@@ -1988,7 +2028,7 @@ async function generatePDF() {
       text("Action prioritaire recommandée par PhysioAI Lab.", 9, COL.muted);
       separator();
     }
-
+ 
     // ── PIED DE PAGE DERNIÈRE PAGE ────────────────────────────────────────────
     if (d.meta.pageNum) {
       const pg = doc.internal.getNumberOfPages();
@@ -1997,11 +2037,11 @@ async function generatePDF() {
       doc.text(`Page ${pg}`, pw - margin, ph - 8, {align:"right"});
       doc.text("PhysioAI Lab", margin, ph - 8);
     }
-
+ 
     // ── Sauvegarde ────────────────────────────────────────────────────────────
     const filename = `PhysioAI_Rapport_${new Date().toISOString().slice(0,10)}.pdf`;
     doc.save(filename);
-
+ 
     const elStatus = document.getElementById("reportStatus");
     elStatus.style.display = "block";
     elStatus.innerHTML = `
@@ -2013,13 +2053,13 @@ async function generatePDF() {
       <div class="metric-row"><span class="metric-label">Sections</span>
         <span class="metric-value">${tocItems.length}</span></div>`;
     showToast("✓ Rapport PDF généré et téléchargé", "success");
-
+ 
   } catch(e) {
     console.error("PDF error:", e);
     showToast("Erreur PDF : " + e.message, "error");
   } finally { hideLoader(); }
 }
-
+ 
 // ── Chargement dynamique d'un script ─────────────────────────────────────────
 function loadScript(src) {
   return new Promise((resolve, reject) => {
