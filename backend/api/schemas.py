@@ -89,3 +89,34 @@ class RTDRequest(BaseModel):
     t: List[float]
     tau: float = 10.0
     N: int = Field(3, ge=1, le=20)
+
+
+# ── Prédiction ────────────────────────────────────────────────────────────────
+
+class PredictionRequest(BaseModel):
+    """Prédiction sur de nouvelles valeurs X avec le modèle entraîné en session."""
+    X_train:      List[List[float]] = Field(..., description="Données d'entraînement X")
+    y_train:      List[float]       = Field(..., description="Données d'entraînement y")
+    X_predict:    List[List[float]] = Field(..., description="Nouvelles valeurs X à prédire")
+    model_type:   str  = Field("random_forest",
+        description="linear|polynomial|ridge|lasso|random_forest|svr|gradient_boosting|mlp")
+    degree:       int   = Field(3, ge=2, le=10)
+    alpha:        float = Field(1.0, gt=0)
+    n_estimators: int   = Field(100, ge=10)
+    hidden_layers: List[int] = Field(default=[64, 32, 16])
+    epochs:       int   = Field(150, ge=10)
+    confidence_interval: bool = Field(True, description="Calcul intervalle de confiance (RF)")
+
+
+# ── Décision Globale IA ───────────────────────────────────────────────────────
+
+class GlobalDecisionRequest(BaseModel):
+    """Envoie toutes les données à Gemini pour une décision globale."""
+    x:               List[float]
+    y:               List[float]
+    gemini_api_key:  str  = Field(..., description="Clé API Google AI Studio")
+    context:         str  = Field("",  description="Contexte métier (ex: 'réaction de dégradation')")
+    regression_result: Optional[Dict[str, Any]] = None
+    physical_result:   Optional[Dict[str, Any]] = None
+    ai_advisor_result: Optional[Dict[str, Any]] = None
+    language:        str  = Field("fr", description="fr|en")

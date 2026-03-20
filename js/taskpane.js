@@ -927,3 +927,478 @@ function showToast(msg, type = "info") {
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => el.classList.remove("show"), 3500);
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB PRÉDICTION
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Cache des derniers résultats pour Gemini ─────────────────────────────────
+const resultCache = {
+  regression: null,
+  physical:   null,
+  advisor:    null,
+};
+
+// Intercepter les résultats existants pour les mettre en cache
+const _origRenderRegression = typeof renderRegressionResult === 'function'
+  ? renderRegressionResult : null;
+
+// ── Init des boutons Prédiction & Décision ───────────────────────────────────
+(function initNewTabs() {
+  // Attendre que le DOM soit prêt
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("btnGenerateRange")
+      ?.addEventListener("click", generateXRange);
+    document.getElementById("btnPredict")
+      ?.addEventListener("click", runPrediction);
+    document.getElementById("btnExportPredict")
+      ?.addEventListener("click", exportPredictions);
+    document.getElementById("btnQuickDecision")
+      ?.addEventListener("click", runQuickDecision);
+    document.getElementById("btnGeminiDecision")
+      ?.addEventListener("click", runGeminiDecision);
+
+    // Boutons langue
+    document.querySelectorAll(".lang-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".lang-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+      });
+    });
+  });
+})();
+
+// ── Mise à jour statut données ────────────────────────────────────────────────
+function updatePredictDataStatus() {
+  const el = document.getElementById("predictDataStatus");
+  if (!el) return;
+  if (state.xData.length) {
+    el.innerHTML = `<span class="status-badge online">
+      ✓ ${state.xData.length} points chargés</span>`;
+  } else {
+    el.innerHTML = `<span class="status-badge offline">
+      Aucune donnée — chargez depuis l'onglet Analyser</span>`;
+  }
+}
+
+// ── Générer une plage X ───────────────────────────────────────────────────────
+function generateXRange() {
+  const from = parseFloat(document.getElementById("predictXFrom").value);
+  const to   = parseFloat(document.getElementById("predictXTo").value);
+  const n    = parseInt(document.getElementById("predictXN").value) || 20;
+  if (isNaN(from) || isNaN(to)) {
+    showToast("Entrez les bornes 'De' et 'À'", "error"); return;
+  }
+  const step = (to - from) / (n - 1);
+  const vals = Array.from({length: n}, (_, i) => parseFloat((from + i*step).toFixed(6)));
+  document.getElementById("predictXInput").value = vals.join(", ");
+  showToast(`✓ ${n} valeurs générées [${from} → ${to}]`, "info");
+}
+
+// ── Lancer la prédiction ──────────────────────────────────────────────────────
+async function runPrediction() {
+  updatePredictDataStatus();
+  if (!state.xData.length) {
+    showToast("Chargez des données d'entraînement d'abord (onglet Analyser)", "error");
+    return;
+  }
+
+  const rawInput = document.getElementById("predictXInput").value.trim();
+  if (!rawInput) { showToast("Entrez les valeurs X à prédire", "error"); return; }
+
+  // Parser les X de prédiction
+  const xPred = rawInput
+    .split(/[\s,;]+/)
+    .map(v => parseFloat(v))
+    .filter(v => !isNaN(v));
+
+  if (!xPred.length) { showToast("Valeurs X invalides", "error"); return; }
+
+  const modelType = document.getElementById("predictModel").value;
+  const ci        = document.getElementById("predictCI")?.checked ?? true;
+  const X_train   = state.xData.map(v => [v]);
+  const X_predict = xPred.map(v => [v]);
+
+  showLoader(`Prédiction (${modelType})…`);
+  try {
+    const res = await apiPost("/predict/new", {
+      X_train, y_train: state.yData, X_predict,
+      model_type: modelType,
+      confidence_interval: ci,
+      n_estimators: 100, epochs: 150,
+    });
+
+    renderPredictionResult(res, xPred);
+    showToast(`✓ ${res.predictions.length} valeurs prédites`, "success");
+  } catch(e) {
+    showToast("Erreur prédiction : " + e.message, "error");
+  } finally { hideLoader(); }
+}
+
+// ── Afficher les résultats de prédiction ──────────────────────────────────────
+function renderPredictionResult(res, xPred) {
+  // Graphique
+  const chartCard = document.getElementById("predictChartCard");
+  chartCard.style.display = "block";
+  destroyChart("predictChart");
+
+  const ctx = document.getElementById("predictChart").getContext("2d");
+  const datasets = [
+    {
+      label: "Données entraînement",
+      data: state.xData.map((x,i) => ({x, y: state.yData[i]})),
+      backgroundColor: "rgba(255,183,0,.7)",
+      pointRadius: 4,
+      type: "scatter",
+    },
+    {
+      label: `Prédictions (${res.model_type})`,
+      data: xPred.map((x,i) => ({x, y: res.predictions[i]})),
+      borderColor: "#6495ff",
+      backgroundColor: "rgba(100,149,255,.15)",
+      borderWidth: 2.5,
+      pointRadius: 6,
+      pointStyle: "diamond",
+      type: "scatter",
+    },
+  ];
+
+  // Intervalles de confiance
+  if (res.ci_lower && res.ci_upper) {
+    datasets.push({
+      label: `IC ${res.ci_level || "95%"}`,
+      data: xPred.map((x,i) => ({x, y: res.ci_upper[i]})),
+      borderColor: "rgba(100,149,255,.3)",
+      backgroundColor: "rgba(100,149,255,.07)",
+      borderWidth: 1,
+      borderDash: [4,3],
+      pointRadius: 0,
+      type: "line",
+      fill: "-1",
+    });
+    datasets.push({
+      label: `IC lower`,
+      data: xPred.map((x,i) => ({x, y: res.ci_lower[i]})),
+      borderColor: "rgba(100,149,255,.3)",
+      backgroundColor: "transparent",
+      borderWidth: 1,
+      borderDash: [4,3],
+      pointRadius: 0,
+      type: "line",
+    });
+  }
+
+  state.charts["predictChart"] = new Chart(ctx, {
+    type: "scatter",
+    data: { datasets },
+    options: chartOptions(`Prédictions — ${res.model_type}  (R²train=${res.train_r2})`),
+  });
+
+  // Résumé métriques
+  const elRes = document.getElementById("predictResult");
+  elRes.style.display = "block";
+  const ps = res.pred_stats || {};
+  elRes.innerHTML = `
+    <h4>Résultats de prédiction</h4>
+    <div class="metric-row"><span class="metric-label">Modèle</span>
+      <span class="metric-value">${res.model_type}</span></div>
+    <div class="metric-row"><span class="metric-label">R² entraînement</span>
+      <span class="metric-value ${res.train_r2>0.9?'good':res.train_r2>0.7?'warn':'bad'}">
+        ${res.train_r2?.toFixed(6)}</span></div>
+    <div class="metric-row"><span class="metric-label">RMSE entraînement</span>
+      <span class="metric-value">${res.train_rmse?.toFixed(6)}</span></div>
+    <div class="metric-row"><span class="metric-label">N prédictions</span>
+      <span class="metric-value">${res.n_predict}</span></div>
+    <div class="metric-row"><span class="metric-label">Moy. prédite</span>
+      <span class="metric-value">${ps.mean?.toFixed(6) ?? '—'}</span></div>
+    <div class="metric-row"><span class="metric-label">Plage [min, max]</span>
+      <span class="metric-value">[${ps.min?.toFixed(4) ?? '—'}, ${ps.max?.toFixed(4) ?? '—'}]</span></div>
+    ${res.ci_level ? `<div class="metric-row"><span class="metric-label">Intervalle confiance</span>
+      <span class="metric-value cyan">${res.ci_level}</span></div>` : ''}
+  `;
+
+  // Tableau
+  state._lastPredictions = { xPred, res };
+  renderPredictTable(xPred, res);
+}
+
+function renderPredictTable(xPred, res) {
+  const panel = document.getElementById("predictTablePanel");
+  panel.style.display = "block";
+  const hasCI = !!(res.ci_lower && res.ci_upper);
+  const rows = xPred.map((x,i) => `
+    <tr>
+      <td>${x.toFixed(4)}</td>
+      <td style="color:var(--cyan)">${res.predictions[i]?.toFixed(6) ?? '—'}</td>
+      ${hasCI ? `<td class="ci-col">${res.ci_lower[i]?.toFixed(4) ?? '—'}</td>
+                 <td class="ci-col">${res.ci_upper[i]?.toFixed(4) ?? '—'}</td>` : ''}
+      <td style="color:var(--text-muted);font-size:9px">${res.ci_std?.[i]?.toFixed(4) ?? '—'}</td>
+    </tr>`).join('');
+
+  document.getElementById("predictTableWrap").innerHTML = `
+    <table>
+      <thead><tr>
+        <th>x</th><th>ŷ prédit</th>
+        ${hasCI ? '<th>IC inf.</th><th>IC sup.</th>' : ''}
+        <th>σ</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function exportPredictions() {
+  if (!state.officeReady || !state._lastPredictions) {
+    showToast("Aucune prédiction à exporter", "info"); return;
+  }
+  const { xPred, res } = state._lastPredictions;
+  showLoader("Export…");
+  try {
+    await Excel.run(async ctx => {
+      const sheet = ctx.workbook.worksheets.add("PhysioAI_Prédictions");
+      sheet.getRange("A1").values = [["PhysioAI Lab — Prédictions"]];
+      sheet.getRange("A1").format.font.bold = true;
+      sheet.getRange("A1").format.font.color = "#6495ff";
+
+      const headers = [["x", "y_prédit", "IC_inférieur", "IC_supérieur", "σ"]];
+      sheet.getRange("A3:E3").values = headers;
+      sheet.getRange("A3:E3").format.font.bold = true;
+
+      const rows = xPred.map((x,i) => [
+        x,
+        res.predictions[i] ?? "",
+        res.ci_lower?.[i] ?? "",
+        res.ci_upper?.[i] ?? "",
+        res.ci_std?.[i] ?? "",
+      ]);
+      sheet.getRange(`A4:E${3+rows.length}`).values = rows;
+      sheet.getUsedRange().format.autofitColumns();
+      await ctx.sync();
+      showToast("✓ Exporté vers 'PhysioAI_Prédictions'", "success");
+    });
+  } catch(e) { showToast("Erreur export : " + e.message, "error"); }
+  finally { hideLoader(); }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB DÉCISION GLOBALE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function toggleKeyVisibility() {
+  const el = document.getElementById("geminiKey");
+  if (!el) return;
+  el.type = document.getElementById("showKey").checked ? "text" : "password";
+}
+
+function getSelectedLanguage() {
+  const active = document.querySelector(".lang-btn.active");
+  return active?.dataset.lang || "fr";
+}
+
+// ── Décision rapide (sans Gemini) ─────────────────────────────────────────────
+async function runQuickDecision() {
+  if (!state.xData.length) {
+    showToast("Chargez des données d'abord", "error"); return;
+  }
+  showLoader("Analyse locale…");
+  try {
+    const res = await apiPost("/decision/quick", {
+      x: state.xData, y: state.yData,
+      gemini_api_key: "local",
+      context: document.getElementById("decisionContext").value,
+      language: getSelectedLanguage(),
+    });
+    renderDecisionReport(res, false);
+    showToast("✓ Décision rapide générée", "success");
+  } catch(e) {
+    showToast("Erreur : " + e.message, "error");
+  } finally { hideLoader(); }
+}
+
+// ── Décision Gemini ───────────────────────────────────────────────────────────
+async function runGeminiDecision() {
+  if (!state.xData.length) {
+    showToast("Chargez des données d'abord", "error"); return;
+  }
+  const apiKey = document.getElementById("geminiKey").value.trim();
+  if (!apiKey) {
+    showToast("Entrez votre clé API Google AI Studio", "error"); return;
+  }
+
+  showLoader("✦ Gemini analyse vos données…");
+  try {
+    const payload = {
+      x: state.xData, y: state.yData,
+      gemini_api_key: apiKey,
+      context: document.getElementById("decisionContext").value,
+      language: getSelectedLanguage(),
+      regression_result:  document.getElementById("includeRegression").checked
+                          ? resultCache.regression : null,
+      physical_result:    document.getElementById("includePhysical").checked
+                          ? resultCache.physical   : null,
+      ai_advisor_result:  document.getElementById("includeAdvisor").checked
+                          ? resultCache.advisor    : null,
+    };
+    const res = await apiPost("/decision/global", payload);
+    renderDecisionReport(res, true);
+    showToast("✓ Rapport Gemini généré", "success");
+  } catch(e) {
+    showToast("Erreur Gemini : " + e.message, "error");
+  } finally { hideLoader(); }
+}
+
+// ── Rendu du rapport de décision ──────────────────────────────────────────────
+function renderDecisionReport(res, isGemini) {
+  const el = document.getElementById("decisionReport");
+  el.style.display = "block";
+
+  const r   = res.report;
+  const lang = res.language || "fr";
+  const isFr = lang === "fr";
+
+  // Clés selon langue
+  const dg  = r.decision_globale  || r.global_decision  || {};
+  const ip  = r.interpretation_physique || r.physical_interpretation || {};
+  const vc  = r.validation_croisee || r.cross_validation || {};
+  const rec = r.recommandations_prioritaires || r.priority_recommendations || [];
+  const ns  = r.prochaines_etapes  || r.next_steps || {};
+  const risks = r.risques || r.risks || [];
+  const exec = r.resume_executif || r.executive_summary || "";
+  const note = r.note || "";
+
+  const score = dg.score_qualite_donnees ?? dg.data_quality_score ?? 0;
+  const conf  = (dg.confiance || dg.confidence || "?").toLowerCase();
+  const confClass = conf.includes("haut") || conf === "high" ? "high"
+                  : conf.includes("moy")  || conf === "medium" ? "medium" : "low";
+
+  // Construire les sections
+  let html = `
+  <div class="dr-section">
+    <div class="dr-title">${isGemini ? '✦ Gemini' : '⚡ Analyse locale'} — ${isFr ? 'Décision Globale' : 'Global Decision'}</div>
+    <div class="dr-verdict">
+      <div class="dr-verdict-text">${dg.verdict || dg.verdict || '—'}</div>
+      <div class="dr-confidence ${confClass}">● ${isFr ? 'Confiance' : 'Confidence'} : ${dg.confiance || dg.confidence || '?'}</div>
+    </div>
+    <div style="font-size:9px;color:var(--text-muted);margin-bottom:3px">
+      ${isFr ? 'Qualité des données' : 'Data quality'} : ${score}/100
+    </div>
+    <div class="dr-score-bar">
+      <div class="dr-score-fill" style="width:${Math.min(score,100)}%"></div>
+    </div>
+  </div>`;
+
+  // Interprétation physique
+  if (ip && Object.keys(ip).length) {
+    const ph = ip.phenomene_detecte || ip.detected_phenomenon || '';
+    const mec = ip.mecanisme || ip.mechanism || '';
+    const sig = ip.signification_physique || ip.physical_meaning || '';
+    const params = ip.parametres_cles || ip.key_parameters || [];
+    html += `
+  <div class="dr-section">
+    <div class="dr-title">${isFr ? '⚗ Interprétation Physique' : '⚗ Physical Interpretation'}</div>
+    ${ph ? `<div class="metric-row"><span class="metric-label">${isFr?'Phénomène':'Phenomenon'}</span><span class="metric-value">${ph}</span></div>` : ''}
+    ${mec ? `<div class="metric-row"><span class="metric-label">${isFr?'Mécanisme':'Mechanism'}</span><span style="font-size:11px;color:var(--text-secondary)">${mec}</span></div>` : ''}
+    ${sig ? `<div class="hint" style="margin-top:6px">${sig}</div>` : ''}
+    ${params.length ? `<div style="margin-top:6px">${params.map(p=>`<span class="ai-badge cyan">${p}</span>`).join('')}</div>` : ''}
+  </div>`;
+  }
+
+  // Validation croisée
+  if (vc && Object.keys(vc).length) {
+    const points = vc.points_forts || vc.strengths || [];
+    const concerns = vc.points_attention || vc.concerns || [];
+    html += `
+  <div class="dr-section">
+    <div class="dr-title">${isFr ? '✓ Validation Croisée' : '✓ Cross Validation'}</div>
+    ${points.map(p=>`<div style="display:flex;gap:6px;margin-bottom:4px;font-size:11px">
+      <span style="color:var(--green)">✓</span><span>${p}</span></div>`).join('')}
+    ${concerns.map(c=>`<div style="display:flex;gap:6px;margin-bottom:4px;font-size:11px">
+      <span style="color:var(--amber)">⚠</span><span>${c}</span></div>`).join('')}
+  </div>`;
+  }
+
+  // Recommandations prioritaires
+  if (rec.length) {
+    html += `<div class="dr-section"><div class="dr-title">${isFr?'🎯 Recommandations':'🎯 Recommendations'}</div>`;
+    rec.slice(0,4).forEach((r,i) => {
+      const action = r.action || '';
+      const just   = r.justification || r.reason || '';
+      const impact = r.impact_attendu || r.expected_impact || '';
+      html += `<div class="dr-reco">
+        <div class="dr-reco-num">${isFr?'PRIORITÉ':'PRIORITY'} ${r.priorite||r.priority||i+1}</div>
+        <div class="dr-reco-action">${action}</div>
+        <div class="dr-reco-why">${just}</div>
+        ${impact?`<div class="dr-reco-why" style="color:var(--cyan)">→ ${impact}</div>`:''}
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Prochaines étapes
+  const ct = ns.court_terme || ns.short_term || [];
+  const mt = ns.moyen_terme || ns.medium_term || [];
+  const exp = ns.experiences_suggerees || ns.suggested_experiments || [];
+  if (ct.length || mt.length || exp.length) {
+    html += `<div class="dr-section"><div class="dr-title">${isFr?'📅 Prochaines Étapes':'📅 Next Steps'}</div>`;
+    if (ct.length) {
+      html += `<div style="font-size:9px;color:var(--amber);margin:6px 0 3px;text-transform:uppercase;letter-spacing:1px">${isFr?'Court terme':'Short term'}</div>`;
+      html += `<ul class="dr-list">${ct.map(s=>`<li>${s}</li>`).join('')}</ul>`;
+    }
+    if (mt.length) {
+      html += `<div style="font-size:9px;color:var(--cyan);margin:8px 0 3px;text-transform:uppercase;letter-spacing:1px">${isFr?'Moyen terme':'Medium term'}</div>`;
+      html += `<ul class="dr-list">${mt.map(s=>`<li>${s}</li>`).join('')}</ul>`;
+    }
+    if (exp.length) {
+      html += `<div style="font-size:9px;color:var(--text-muted);margin:8px 0 3px;text-transform:uppercase;letter-spacing:1px">${isFr?'Expériences suggérées':'Suggested experiments'}</div>`;
+      html += `<ul class="dr-list">${exp.map(s=>`<li>${s}</li>`).join('')}</ul>`;
+    }
+    html += `</div>`;
+  }
+
+  // Risques
+  if (risks.length) {
+    html += `<div class="dr-section"><div class="dr-title">⚠ ${isFr?'Risques':'Risks'}</div>`;
+    risks.forEach(r => {
+      const prob  = r.probabilite || r.probability || 'low';
+      const risk  = r.risque || r.risk || '';
+      const mit   = r.mitigation || '';
+      html += `<div class="dr-risk">
+        <span class="dr-risk-badge ${prob.toLowerCase()}">${prob}</span>
+        <div><div style="font-size:11px">${risk}</div>
+          ${mit?`<div style="font-size:10px;color:var(--text-muted);margin-top:2px">→ ${mit}</div>`:''}
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Résumé exécutif
+  if (exec) {
+    html += `<div class="dr-section">
+      <div class="dr-title">${isFr?'📋 Résumé Exécutif':'📋 Executive Summary'}</div>
+      <div class="dr-executive">${exec}</div>
+    </div>`;
+  }
+
+  if (note) {
+    html += `<div class="hint" style="margin-top:8px;padding:8px;border:1px dashed var(--border);border-radius:6px">${note}</div>`;
+  }
+
+  el.innerHTML = html;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ── Patch pour mettre à jour le statut dès que les données sont chargées ─────
+const _origRenderDataPreview = renderDataPreview;
+window.renderDataPreview = function(values, startRow) {
+  _origRenderDataPreview(values, startRow);
+  updatePredictDataStatus();
+};
+
+// ── Patch pour cacher resultCache après régression ───────────────────────────
+const _origRenderReg = renderRegressionResult;
+window.renderRegressionResult = function(res) {
+  _origRenderReg(res);
+  resultCache.regression = res;
+};

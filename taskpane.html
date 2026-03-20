@@ -34,6 +34,8 @@
   <button class="tab-btn" data-tab="model">📐 Modèles</button>
   <button class="tab-btn" data-tab="simulate">🔬 Simuler</button>
   <button class="tab-btn" data-tab="ai">🤖 IA</button>
+  <button class="tab-btn" data-tab="predict">🎯 Prédiction</button>
+  <button class="tab-btn" data-tab="decision">🧠 Décision</button>
 </nav>
 
 <!-- ══════════════════════════════════════════════════
@@ -304,6 +306,172 @@
     </div>
     <div class="result-block" id="hybridResult" style="display:none"></div>
   </div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 5 : PRÉDICTION
+══════════════════════════════════════════════════ -->
+<section class="tab-panel" id="tab-predict">
+
+  <div class="panel-block">
+    <label class="field-label">Données d'entraînement</label>
+    <p class="hint">Chargez d'abord vos données dans l'onglet Analyser.</p>
+    <div class="data-status" id="predictDataStatus">
+      <span class="status-badge offline">Aucune donnée chargée</span>
+    </div>
+  </div>
+
+  <div class="panel-block">
+    <label class="field-label">Modèle de prédiction</label>
+    <select class="field-select" id="predictModel">
+      <optgroup label="── Régression">
+        <option value="linear">Linéaire</option>
+        <option value="polynomial">Polynomiale</option>
+        <option value="ridge">Ridge (L2)</option>
+        <option value="lasso">Lasso (L1)</option>
+      </optgroup>
+      <optgroup label="── Machine Learning">
+        <option value="random_forest" selected>🌲 Random Forest (+ intervalles)</option>
+        <option value="svr">SVR</option>
+        <option value="gradient_boosting">Gradient Boosting</option>
+      </optgroup>
+      <optgroup label="── Deep Learning">
+        <option value="mlp">🧠 MLP PyTorch</option>
+      </optgroup>
+    </select>
+  </div>
+
+  <div class="panel-block">
+    <label class="field-label">Nouvelles valeurs X à prédire</label>
+    <p class="hint">Entrez les valeurs séparées par des virgules ou des espaces.</p>
+    <textarea class="field-input" id="predictXInput" rows="3"
+      placeholder="Ex: 10, 20, 30, 40, 50&#10;ou plage : de 0 à 100, 20 points"></textarea>
+    <div class="row-2 mt-8">
+      <div>
+        <label class="field-label small">De</label>
+        <input class="field-input" id="predictXFrom" type="number" placeholder="0"/>
+      </div>
+      <div>
+        <label class="field-label small">À</label>
+        <input class="field-input" id="predictXTo" type="number" placeholder="100"/>
+      </div>
+    </div>
+    <div class="row-2 mt-4">
+      <div>
+        <label class="field-label small">N points</label>
+        <input class="field-input" id="predictXN" type="number" value="20" min="1"/>
+      </div>
+      <button class="btn btn-secondary" id="btnGenerateRange" style="align-self:flex-end">
+        Générer plage
+      </button>
+    </div>
+  </div>
+
+  <div class="panel-block">
+    <div class="toggle-row">
+      <label class="field-label">Intervalles de confiance (RF)</label>
+      <label class="toggle">
+        <input type="checkbox" id="predictCI" checked/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <button class="btn btn-primary full-width mt-8" id="btnPredict">
+      🎯 Prédire
+    </button>
+  </div>
+
+  <div class="chart-card" id="predictChartCard" style="display:none">
+    <canvas id="predictChart"></canvas>
+  </div>
+
+  <div class="result-block" id="predictResult" style="display:none"></div>
+
+  <div class="panel-block" id="predictTablePanel" style="display:none">
+    <label class="field-label">Tableau des prédictions</label>
+    <div class="predict-table-wrap" id="predictTableWrap"></div>
+    <button class="btn btn-ghost full-width mt-8" id="btnExportPredict">
+      📤 Exporter vers Excel
+    </button>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 6 : DÉCISION GLOBALE (GEMINI)
+══════════════════════════════════════════════════ -->
+<section class="tab-panel" id="tab-decision">
+
+  <!-- Clé API Gemini -->
+  <div class="panel-block gemini-card">
+    <label class="field-label">Clé API Google AI Studio</label>
+    <div class="gemini-header">
+      <span class="gemini-logo">✦ Gemini</span>
+      <a class="gemini-link" href="https://aistudio.google.com/app/apikey"
+         target="_blank">Obtenir une clé gratuite →</a>
+    </div>
+    <input class="field-input" id="geminiKey" type="password"
+           placeholder="AIza..."/>
+    <div class="toggle-row mt-8">
+      <label class="field-label small">Afficher la clé</label>
+      <label class="toggle">
+        <input type="checkbox" id="showKey" onchange="toggleKeyVisibility()"/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Contexte métier -->
+  <div class="panel-block">
+    <label class="field-label">Contexte métier (optionnel)</label>
+    <textarea class="field-input" id="decisionContext" rows="3"
+      placeholder="Ex: Cinétique de dégradation d'un antibiotique à 37°C en milieu tampon pH 7.4. Objectif : déterminer la durée de vie du produit."></textarea>
+  </div>
+
+  <!-- Langue -->
+  <div class="panel-block">
+    <label class="field-label">Langue du rapport</label>
+    <div class="row-2">
+      <button class="btn btn-secondary lang-btn active" data-lang="fr" id="btnLangFr">
+        🇫🇷 Français
+      </button>
+      <button class="btn btn-secondary lang-btn" data-lang="en" id="btnLangEn">
+        🇬🇧 English
+      </button>
+    </div>
+  </div>
+
+  <!-- Inclure les analyses précédentes -->
+  <div class="panel-block">
+    <label class="field-label">Inclure dans l'analyse Gemini</label>
+    <div class="check-row">
+      <label class="check-label">
+        <input type="checkbox" id="includeRegression" checked/>
+        Résultats de régression
+      </label>
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="includePhysical" checked/>
+      <label class="check-label">Modèle physique</label>
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="includeAdvisor" checked/>
+      <label class="check-label">Analyse IA Advisor</label>
+    </div>
+  </div>
+
+  <div class="row-2">
+    <button class="btn btn-accent" id="btnQuickDecision">
+      ⚡ Décision rapide
+    </button>
+    <button class="btn btn-primary" id="btnGeminiDecision">
+      ✦ Décision Gemini
+    </button>
+  </div>
+
+  <!-- Rapport de décision -->
+  <div class="decision-report" id="decisionReport" style="display:none"></div>
 
 </section>
 
