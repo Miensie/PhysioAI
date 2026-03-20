@@ -419,14 +419,33 @@ function renderPhysicalResult(res, doFit) {
         <span class="metric-value">${res.v_darcy.toExponential(4)}</span></div>`;
     return;
   }
-  const t = res.t || res.z || res.x || res.T;
-  const y = res.C || res.T_val || res.E || res.P_sat;
-  // Renommer la clé T (température) pour éviter collision avec vecteur T (Antoine)
-  const yData = res.C ?? res.T ?? res.E ?? res.P_sat;
+  // Axe X : temps (t), position (z/x), ou plage température (T pour Antoine)
+  // Priorité : t > z > x — le vecteur T d'Antoine est pris en dernier
+  const tArr = res.t ?? res.z ?? res.x ?? [];
+
+  // Axe Y : C (concentration), T (température Newton), E (RTD), P_sat (Antoine)
+  // Utiliser ?? pour ne pas exclure les tableaux vides valides
+  const yArr = res.C ?? res.T ?? res.E ?? res.P_sat ?? [];
+
+  // Sécurité : si l'un des deux est vide, ne pas planter
+  if (!Array.isArray(tArr) || !Array.isArray(yArr) || tArr.length === 0) {
+    const el = document.getElementById("physResult");
+    el.style.display = "block";
+    el.innerHTML = `<h4>${res.model || "Résultats"}</h4>
+      <div class="hint">Aucune donnée à afficher pour ce modèle.</div>
+      <pre style="font-size:9px;overflow:auto">${JSON.stringify(res, null, 2).substring(0,500)}</pre>`;
+    return;
+  }
+
+  // Label axe Y selon le modèle
+  const yLabel = res.model?.includes("heat")   ? "T (°C)"
+               : res.model?.includes("rtd")    ? "E(t)"
+               : res.model?.includes("antoine")? "P_sat (mmHg)"
+               : "C (mol/L)";
 
   const datasets = [{
-    label: doFit ? "Modèle calibré" : "Simulation",
-    data: t.map((ti,i) => ({x: ti, y: y[i]})),
+    label: doFit ? "Modèle calibré" : `Simulation — ${yLabel}`,
+    data: tArr.map((ti,i) => ({x: ti, y: yArr[i]})),
     type: "line",
     borderColor: "#ffb700",
     backgroundColor: "rgba(255,183,0,.1)",
@@ -457,7 +476,7 @@ function renderPhysicalResult(res, doFit) {
   el.style.display = "block";
   const p = res.params || res;
   let paramsHtml = Object.entries(p)
-    .filter(([k]) => !["t","C","T","E","z","x","y","t_fit","C_fit"].includes(k))
+    .filter(([k]) => !["t","C","T","E","z","x","y","t_fit","C_fit","P_sat"].includes(k) && !Array.isArray(v))
     .map(([k,v]) => `<div class="metric-row">
       <span class="metric-label">${k}</span>
       <span class="metric-value">${typeof v === "number" ? v.toFixed(6) : v}</span>
@@ -1460,10 +1479,10 @@ document.addEventListener("DOMContentLoaded", () => {
 function collectReportData() {
   return {
     meta: {
-      title:       document.getElementById("reportTitle")?.value    || "Rapport PhysioAI Lab",
-      author:      document.getElementById("reportAuthor")?.value   || "",
-      project:     document.getElementById("reportProject")?.value  || "",
-      description: document.getElementById("reportDescription")?.value || "",
+      title:       decodeHTML(document.getElementById("reportTitle")?.value    || "Rapport PhysioAI Lab"),
+      author:      decodeHTML(document.getElementById("reportAuthor")?.value   || ""),
+      project:     decodeHTML(document.getElementById("reportProject")?.value  || ""),
+      description: decodeHTML(document.getElementById("reportDescription")?.value || ""),
       date:        new Date().toLocaleDateString("fr-FR", {
                      day:"2-digit", month:"long", year:"numeric"
                    }),
@@ -1557,6 +1576,30 @@ function previewReport() {
     </div>`;
 }
 
+
+// ── Décodage des entités HTML pour le PDF ─────────────────────────────────────
+function decodeHTML(str) {
+  if (!str || typeof str !== "string") return str || "";
+  return str
+    .replace(/&amp;/g,  "&")
+    .replace(/&lt;/g,   "<")
+    .replace(/&gt;/g,   ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g,  "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&eacute;/g, "é")
+    .replace(/&egrave;/g, "è")
+    .replace(/&ecirc;/g,  "ê")
+    .replace(/&agrave;/g, "à")
+    .replace(/&acirc;/g,  "â")
+    .replace(/&ocirc;/g,  "ô")
+    .replace(/&ugrave;/g, "ù")
+    .replace(/&ucirc;/g,  "û")
+    .replace(/&ccedil;/g, "ç")
+    .replace(/&laquo;/g,  "«")
+    .replace(/&raquo;/g,  "»");
+}
+
 // ── Génération du PDF via jsPDF (CDN) ─────────────────────────────────────────
 async function generatePDF() {
   const d = collectReportData();
@@ -1629,9 +1672,9 @@ async function generatePDF() {
       checkPage(7);
       doc.setFontSize(9); doc.setFont(undefined, "normal");
       doc.setTextColor(...COL.muted);
-      doc.text(label, margin, y);
+      doc.text(decodeHTML(String(label || "")), margin, y);
       doc.setTextColor(...(valueColor || COL.dark));
-      doc.text(String(value), margin + cw * 0.5, y);
+      doc.text(decodeHTML(String(value ?? "")), margin + cw * 0.5, y);
       doc.setDrawColor(230, 230, 230);
       doc.line(margin, y + 1.5, margin + cw, y + 1.5);
       y += 7;
@@ -1639,10 +1682,11 @@ async function generatePDF() {
 
     function text(txt, size = 9, color) {
       checkPage(6);
+      const clean = decodeHTML(String(txt || ""));
       doc.setFontSize(size);
       doc.setFont(undefined, "normal");
       doc.setTextColor(...(color || COL.dark));
-      const lines = doc.splitTextToSize(txt, cw);
+      const lines = doc.splitTextToSize(clean, cw);
       doc.text(lines, margin, y);
       y += lines.length * (size * 0.45) + 2;
     }
@@ -1808,7 +1852,7 @@ async function generatePDF() {
           checkPage(7);
           doc.setFontSize(8); doc.setFont(undefined, "normal");
           doc.setTextColor(...COL.muted);
-          doc.text(`#${i+1}  ${name}`, margin + 5, y);
+          doc.text(decodeHTML(`#${i+1}  ${name}`), margin + 5, y);
           doc.setTextColor(...col);
           doc.text(`R²=${r2.toFixed(4)}`, margin + 80, y);
           doc.setTextColor(...COL.muted);
@@ -1854,7 +1898,7 @@ async function generatePDF() {
           const col = r.r2 > 0.95 ? COL.green : r.r2 > 0.80 ? COL.amber : COL.muted;
           checkPage(7);
           doc.setFontSize(8); doc.setTextColor(...COL.muted);
-          doc.text(`#${i+1}  ${r.model}`, margin + 5, y);
+          doc.text(decodeHTML(`#${i+1}  ${r.model}`), margin + 5, y);
           doc.setTextColor(...col);
           doc.text(`R²=${r.r2?.toFixed(4) || "—"}`, margin + 65, y);
           doc.setTextColor(...COL.muted);
