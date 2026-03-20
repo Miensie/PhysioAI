@@ -8,11 +8,9 @@
  *   - Affichage des résultats
  */
 
-// ── Configuration API ──────────────────────────────────────────────────────
-// Modifier RENDER_API_URL avec votre URL backend Render après déploiement
-const RENDER_API_URL = "https://physioai-backend-6iqm.onrender.com";
-const _isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-const API_BASE = (_isLocal ? "http://localhost:8000" : RENDER_API_URL) + "/api/v1";
+// ── Configuration API (chargée depuis js/config.js) ─────────────────────────
+// ✏️  Pour changer l'URL du backend : modifier js/config.js → RENDER_API_URL
+const API_BASE = (window.PHYSIOAI_CONFIG?.API_BASE_URL || "http://localhost:8000") + "/api/v1";
 
 // ── État global ──────────────────────────────────────────────────────────────
 let state = {
@@ -406,6 +404,7 @@ async function runPhysical() {
 }
 
 function renderPhysicalResult(res, doFit) {
+  resultCache.physical = res;  // sauvegarde pour Décision
   const chartCard = document.getElementById("physChart");
   chartCard.style.display = "block";
   destroyChart("physicalChart");
@@ -605,48 +604,82 @@ function renderAIReport(res) {
   const el = document.getElementById("aiReport");
   el.style.display = "block";
 
-  const s   = res.summary;
-  const rec = res.recommendations;
+  const s    = res.summary   || {};
+  const recs = res.recommendations || {};
+  const all  = recs.all_recommendations || [];
+  const dq   = recs.data_quality || {};
+  const warnings = recs.warnings || [];
+
+  // Regrouper par type pour affichage structuré
+  const byType = {};
+  all.forEach(r => {
+    if (!byType[r.type]) byType[r.type] = [];
+    byType[r.type].push(r);
+  });
+
+  // Badges couleur par type
+  const typeStyle = {
+    regression:   "background:rgba(255,183,0,.2);color:var(--amber)",
+    physical:     "background:var(--cyan-dim);color:var(--cyan)",
+    ml:           "background:rgba(61,255,160,.1);color:var(--green)",
+    deep_learning:"background:rgba(160,108,255,.15);color:#a06cff",
+    hybrid:       "background:rgba(0,229,200,.1);color:var(--cyan)",
+  };
+  const typeLabel = {
+    regression:   "Régression",
+    physical:     "Modèle Physique",
+    ml:           "Machine Learning",
+    deep_learning:"Deep Learning",
+    hybrid:       "Modèle Hybride",
+  };
+
+  // Sections par type
+  let sectionsHtml = Object.entries(byType).map(([type, items]) => `
+    <div class="ai-section">
+      <div class="ai-section-title">${typeLabel[type] || type}</div>
+      ${items.map(r => `
+        <div style="margin-bottom:6px">
+          <span class="ai-badge" style="${typeStyle[type] || ''}">${r.model}</span>
+          <span class="ai-badge" style="font-size:9px;opacity:.7">${r.confidence}</span>
+          <div class="hint" style="margin-top:3px">${r.reason}</div>
+        </div>`).join('')}
+    </div>`).join('');
+
+  // Qualité données
+  const qScore = dq.score || 0;
+  const qLabel = dq.label || '';
+  const qColor = qScore >= 80 ? 'var(--green)' : qScore >= 60 ? 'var(--amber)' : 'var(--red)';
+
+  // Alertes
+  const warningsHtml = warnings.length
+    ? `<div class="ai-section">
+        <div class="ai-section-title">Alertes</div>
+        ${warnings.map(w => `<div class="hint" style="color:var(--amber);margin-bottom:3px">${w}</div>`).join('')}
+       </div>` : '';
 
   el.innerHTML = `
     <div class="ai-section">
       <div class="ai-section-title">Résumé des données</div>
-      <span class="ai-badge">${s.n_points} points</span>
-      <span class="ai-badge">${s.trend}</span>
-      <span class="ai-badge">${s.complexity}</span>
-      <span class="ai-badge">bruit: ${s.noise}</span>
+      <span class="ai-badge">${s.n_points || '?'} points</span>
+      <span class="ai-badge">${s.trend || '?'}</span>
+      <span class="ai-badge">${s.complexity || '?'}</span>
+      <span class="ai-badge">bruit: ${s.noise || '?'}</span>
+      <div style="margin-top:8px;font-size:10px;color:var(--text-muted)">
+        Qualité données :
+        <span style="color:${qColor};font-weight:700">${qScore}/100 — ${qLabel}</span>
+      </div>
     </div>
 
-    <div class="ai-section">
-      <div class="ai-section-title">Régression recommandée</div>
-      <span class="ai-badge" style="background:rgba(255,183,0,.2)">${rec.regression.model}</span>
-      <div class="hint" style="margin-top:4px">${rec.regression.reason}</div>
-    </div>
-
-    <div class="ai-section">
-      <div class="ai-section-title">Modèle physique suggéré</div>
-      <span class="ai-badge cyan">${rec.physical_model.model}</span>
-      <div class="hint" style="margin-top:4px">${rec.physical_model.reason}</div>
-    </div>
-
-    <div class="ai-section">
-      <div class="ai-section-title">Approche Machine Learning</div>
-      <span class="ai-badge green">${rec.ml_model.model}</span>
-      <div class="hint" style="margin-top:4px">${rec.ml_model.reason}</div>
-    </div>
-
-    <div class="ai-section">
-      <div class="ai-section-title">Modèle hybride</div>
-      <span class="ai-badge ${rec.hybrid_model.recommended ? 'cyan' : ''}">
-        ${rec.hybrid_model.recommended ? '✓ Recommandé' : 'Non nécessaire'}
-      </span>
-      <div class="hint" style="margin-top:4px">${rec.hybrid_model.description}</div>
-    </div>
+    ${sectionsHtml}
+    ${warningsHtml}
 
     <div style="background:var(--amber-dim);border:1px solid rgba(255,183,0,.2);border-radius:6px;padding:8px;margin-top:8px;font-size:11px;color:var(--amber)">
-      🎯 ${res.priority_action}
+      🎯 ${res.priority_action || ''}
     </div>
   `;
+
+  // Sauvegarder pour Gemini
+  resultCache.advisor = res;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1020,13 +1053,25 @@ async function runPrediction() {
   const X_train   = state.xData.map(v => [v]);
   const X_predict = xPred.map(v => [v]);
 
+  // Paramètres propres à l'onglet Prédiction
+  const degree      = parseInt(document.getElementById("predictDegree")?.value)  || 3;
+  const alpha       = parseFloat(document.getElementById("predictAlpha")?.value)  || 1.0;
+  const nEstim      = parseInt(document.getElementById("predictNEstim")?.value)   || 100;
+  const dlHidden    = (document.getElementById("predictHidden")?.value || "64,32,16")
+                        .split(",").map(v => parseInt(v.trim())).filter(v => !isNaN(v));
+  const dlEpochs    = parseInt(document.getElementById("predictEpochs")?.value)   || 200;
+
   showLoader(`Prédiction (${modelType})…`);
   try {
     const res = await apiPost("/predict/new", {
       X_train, y_train: state.yData, X_predict,
-      model_type: modelType,
-      confidence_interval: ci,
-      n_estimators: 100, epochs: 150,
+      model_type:           modelType,
+      confidence_interval:  ci,
+      degree:               degree,
+      alpha:                alpha,
+      n_estimators:         nEstim,
+      hidden_layers:        dlHidden,
+      epochs:               dlEpochs,
     });
 
     renderPredictionResult(res, xPred);
@@ -1201,16 +1246,56 @@ async function runQuickDecision() {
   if (!state.xData.length) {
     showToast("Chargez des données d'abord", "error"); return;
   }
-  showLoader("Analyse locale…");
+  showLoader("Analyse complète en cours…");
   try {
+    // Étape 1 — lancer la meilleure régression si pas encore fait
+    if (!resultCache.regression) {
+      showLoader("1/3 — Régression automatique…");
+      try {
+        const regRes = await apiPost("/model", {
+          x: state.xData, y: state.yData, model_type: "auto"
+        });
+        resultCache.regression = regRes;
+      } catch(e) { console.warn("Régression échouée:", e); }
+    }
+
+    // Étape 2 — lancer l'analyse IA si pas encore fait
+    if (!resultCache.advisor) {
+      showLoader("2/3 — Analyse IA Advisor…");
+      try {
+        const advRes = await apiPost("/ai/advise", {
+          x: state.xData, y: state.yData
+        });
+        resultCache.advisor = advRes;
+      } catch(e) { console.warn("AI Advisor échoué:", e); }
+    }
+
+    // Étape 3 — décision rapide avec tout le contexte disponible
+    showLoader("3/3 — Décision globale…");
     const res = await apiPost("/decision/quick", {
       x: state.xData, y: state.yData,
       gemini_api_key: "local",
       context: document.getElementById("decisionContext").value,
       language: getSelectedLanguage(),
+      regression_result:  document.getElementById("includeRegression")?.checked
+                          ? resultCache.regression : null,
+      physical_result:    document.getElementById("includePhysical")?.checked
+                          ? resultCache.physical   : null,
+      ai_advisor_result:  document.getElementById("includeAdvisor")?.checked
+                          ? resultCache.advisor    : null,
     });
+
+    // Enrichir le rapport avec les vrais résultats de régression
+    if (resultCache.regression && res.report) {
+      const best = resultCache.regression.best_model || resultCache.regression.model || "?";
+      const allM = resultCache.regression.all_models || {};
+      const models = Object.entries(allM).map(([k,v]) =>
+        `${k}: R²=${v.metrics?.r2?.toFixed(4) || '?'}`).join(' | ');
+      res.report._regression_detail = `Meilleur: ${best} | Tous: ${models}`;
+    }
+
     renderDecisionReport(res, false);
-    showToast("✓ Décision rapide générée", "success");
+    showToast("✓ Décision rapide complète générée", "success");
   } catch(e) {
     showToast("Erreur : " + e.message, "error");
   } finally { hideLoader(); }
@@ -1383,6 +1468,16 @@ function renderDecisionReport(res, isGemini) {
 
   if (note) {
     html += `<div class="hint" style="margin-top:8px;padding:8px;border:1px dashed var(--border);border-radius:6px">${note}</div>`;
+  }
+
+  // Détail des régressions testées (injecté par runQuickDecision)
+  if (r._regression_detail) {
+    html += `<div class="dr-section">
+      <div class="dr-title">📊 ${isFr?'Régressions comparées':'Compared regressions'}</div>
+      <div class="hint" style="font-family:var(--font-mono);line-height:1.8">
+        ${r._regression_detail.replace(/\|/g,'<br>')}
+      </div>
+    </div>`;
   }
 
   el.innerHTML = html;
