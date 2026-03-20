@@ -1,15 +1,14 @@
-# render.yaml — Configuration Render.com
-# Déploie automatiquement le backend FastAPI + le frontend statique
-# Doc : https://render.com/docs/blueprint-spec
+# render.yaml — Blueprint Render
+# Déploie backend FastAPI + frontend statique
 
 services:
 
   # ── Backend FastAPI ─────────────────────────────────────────────────────────
   - type: web
-    name: physioai-lab-api
+    name: physioai-backend-6iqm        # ← nom exact de votre service Render
     runtime: python
-    region: frankfurt          # plus proche d'Abidjan que us-east
-    plan: free                 # starter gratuit — changer en "standard" pour prod
+    region: frankfurt
+    plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
@@ -20,36 +19,29 @@ services:
         value: 3.11.0
       - key: LOG_LEVEL
         value: INFO
+      # Autorise GitHub Pages + localhost
+      # Pour ajouter une origine : séparer par virgule
       - key: CORS_ORIGINS
-        value: "*"             # Remplacer par l'URL Render du frontend en prod
-      - key: PORT
-        generateValue: false   # Render injecte $PORT automatiquement
+        value: "https://miensie.github.io,http://localhost:3000,http://127.0.0.1:5500"
 
-    autoDeploy: true           # Re-déploie à chaque push sur main
+    autoDeploy: true
 
-  # ── Frontend statique ───────────────────────────────────────────────────────
+  # ── Frontend statique (GitHub Pages recommandé) ─────────────────────────────
+  # Le frontend est déjà servi par GitHub Pages → miensie.github.io
+  # Ce service Render frontend est optionnel si vous utilisez GitHub Pages
   - type: web
     name: physioai-lab-frontend
     runtime: static
     region: frankfurt
     plan: free
     rootDir: frontend
-    staticPublishPath: .       # Sert tous les fichiers du dossier frontend/
-
+    staticPublishPath: .
     headers:
       - path: /*
         name: Access-Control-Allow-Origin
         value: "*"
-      - path: /*.js
-        name: Cache-Control
-        value: public, max-age=3600
-      - path: /*.css
-        name: Cache-Control
-        value: public, max-age=3600
-
     routes:
       - type: rewrite
         source: /*
         destination: /taskpane.html
-
     autoDeploy: true

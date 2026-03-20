@@ -29,7 +29,7 @@ git init
 git add .
 git commit -m "feat: initial PhysioAI Lab"
 git branch -M main
-git remote add origin https://github.com/VOTRE_USERNAME/physioai-lab.git
+git remote add origin https://github.com/miensie/physioAI.git
 git push -u origin main
 ```
 

@@ -10,7 +10,7 @@
 
 // ── Configuration API ──────────────────────────────────────────────────────
 // Modifier RENDER_API_URL avec votre URL backend Render après déploiement
-const RENDER_API_URL = "https://physioai-lab-api.onrender.com";
+const RENDER_API_URL = "https://physioai-backend-6iqm.onrender.comm";
 const _isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 const API_BASE = (_isLocal ? "http://localhost:8000" : RENDER_API_URL) + "/api/v1";
 
