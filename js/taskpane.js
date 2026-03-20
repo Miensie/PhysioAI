@@ -1578,489 +1578,670 @@ function previewReport() {
 
 
 // ── Decode HTML entities (keep for compatibility) ───────────────────────────────
+
+// =============================================================================
+// UTILITAIRES PDF
+// =============================================================================
+
 function decodeHTML(str) {
   if (!str || typeof str !== "string") return str || "";
-  return str.replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
-            .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ");
+  return str
+    .replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
+    .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ");
 }
 
-// sanitizePDF : converts all Unicode chars unsupported by jsPDF Helvetica to ASCII
+// sanitizePDF : convertit TOUS les caracteres non-ASCII en equivalents ASCII
+// La police Helvetica de jsPDF ne supporte que le Latin-1 de base
 function sanitizePDF(str) {
   if (!str) return "";
-  str = String(str);
-  str = decodeHTML(str);
-  // Arrows / bullets
-  str = str.replace(/▸/g,">").replace(/▹/g,">").replace(/→/g,"->")
-           .replace(/←/g,"<-").replace(/•/g,"-").replace(/·/g,".")
-           .replace(/×/g,"x").replace(/÷/g,"/");
-  // Superscripts
-  str = str.replace(/⁰/g,"0").replace(/¹/g,"1").replace(/²/g,"2")
-           .replace(/³/g,"3").replace(/⁴/g,"4").replace(/⁵/g,"5")
-           .replace(/⁶/g,"6").replace(/⁷/g,"7").replace(/⁸/g,"8")
-           .replace(/⁹/g,"9").replace(/⁻/g,"-").replace(/⁺/g,"+")
-           .replace(/ⁿ/g,"n").replace(/ᵎ/g,"N");
-  // Subscripts
-  str = str.replace(/₀/g,"0").replace(/₁/g,"1").replace(/₂/g,"2")
-           .replace(/₃/g,"3").replace(/₄/g,"4").replace(/₅/g,"5")
-           .replace(/₆/g,"6").replace(/₇/g,"7").replace(/₈/g,"8")
-           .replace(/₉/g,"9");
-  // Greek letters common in physics
-  str = str.replace(/α/g,"alpha").replace(/β/g,"beta")
-           .replace(/γ/g,"gamma").replace(/δ/g,"delta")
-           .replace(/ε/g,"epsilon").replace(/η/g,"eta")
-           .replace(/θ/g,"theta").replace(/λ/g,"lambda")
-           .replace(/μ/g,"mu").replace(/ν/g,"nu")
-           .replace(/π/g,"pi").replace(/ρ/g,"rho")
-           .replace(/σ/g,"sigma").replace(/τ/g,"tau")
-           .replace(/φ/g,"phi").replace(/ω/g,"omega")
-           .replace(/Δ/g,"Delta").replace(/Σ/g,"Sigma")
-           .replace(/Ω/g,"Omega").replace(/Π/g,"Pi");
-  // Math symbols
-  str = str.replace(/∞/g,"inf").replace(/√/g,"sqrt")
-           .replace(/±/g,"+/-").replace(/≈/g,"~=")
-           .replace(/≠/g,"!=").replace(/≤/g,"<=")
-           .replace(/≥/g,">=");
-  // Degrees / units
-  str = str.replace(/°/g,"deg").replace(/Å/g,"A")
-           .replace(/µ/g,"u");
-  // French accented chars -> ASCII (Helvetica basic latin only)
+  str = decodeHTML(String(str));
+  // Fleches et puces
+  str = str.replace(/[▸▹▶►]/g,">").replace(/[←]/g,"<-").replace(/[→]/g,"->")
+           .replace(/[•·]/g,"-").replace(/[×]/g,"x").replace(/[÷]/g,"/")
+           .replace(/[–—]/g,"-");
+  // Exposants
+  str = str.replace(/[⁰]/g,"0").replace(/[¹]/g,"1").replace(/[²]/g,"2")
+           .replace(/[³]/g,"3").replace(/[⁴]/g,"4").replace(/[⁵]/g,"5")
+           .replace(/[⁶]/g,"6").replace(/[⁷]/g,"7").replace(/[⁸]/g,"8")
+           .replace(/[⁹]/g,"9").replace(/[⁻]/g,"-").replace(/[⁺]/g,"+")
+           .replace(/[ⁿᴺ]/g,"n");
+  // Indices
+  str = str.replace(/[₀]/g,"0").replace(/[₁]/g,"1").replace(/[₂]/g,"2")
+           .replace(/[₃]/g,"3").replace(/[₄]/g,"4").replace(/[₅]/g,"5")
+           .replace(/[₆]/g,"6").replace(/[₇]/g,"7").replace(/[₈]/g,"8")
+           .replace(/[₉]/g,"9");
+  // Lettres grecques
+  str = str.replace(/[α]/g,"alpha").replace(/[β]/g,"beta")
+           .replace(/[γ]/g,"gamma").replace(/[δ]/g,"delta")
+           .replace(/[ε]/g,"epsilon").replace(/[η]/g,"eta")
+           .replace(/[θ]/g,"theta").replace(/[λ]/g,"lambda")
+           .replace(/[μ]/g,"mu").replace(/[ν]/g,"nu")
+           .replace(/[π]/g,"pi").replace(/[ρ]/g,"rho")
+           .replace(/[σ]/g,"sigma").replace(/[τ]/g,"tau")
+           .replace(/[φ]/g,"phi").replace(/[ω]/g,"omega")
+           .replace(/[Δ]/g,"Delta").replace(/[Σ]/g,"Sigma")
+           .replace(/[Ω]/g,"Omega").replace(/[Π]/g,"Pi")
+           .replace(/[Ä]/g,"A").replace(/[Ã]/g,"A");
+  // Symboles maths
+  str = str.replace(/[∞]/g,"inf").replace(/[√]/g,"sqrt")
+           .replace(/[±]/g,"+/-").replace(/[≈]/g,"~=")
+           .replace(/[≠]/g,"!=").replace(/[≤]/g,"<=").replace(/[≥]/g,">=");
+  // Unites
+  str = str.replace(/[°]/g,"deg").replace(/[Å]/g,"A").replace(/[µ]/g,"u");
+  // Accents francais
   str = str.replace(/[éèêë]/g,"e").replace(/[àâä]/g,"a")
            .replace(/[îï]/g,"i").replace(/[ôö]/g,"o")
            .replace(/[ùûü]/g,"u").replace(/[ç]/g,"c")
            .replace(/[ÉÈÊË]/g,"E").replace(/[ÀÂÄ]/g,"A")
            .replace(/[ÎÏ]/g,"I").replace(/[ÔÖ]/g,"O")
            .replace(/[ÙÛÜ]/g,"U").replace(/[Ç]/g,"C");
-  // Quotes / dashes
-  str = str.replace(/[«»]/g,'"')
-           .replace(/[‘’]/g,"'").replace(/[“”]/g,'"')
-           .replace(/–/g,"-").replace(/—/g,"--");
-  // Remove emojis and remaining non-latin1
-  str = str.replace(/[^-ÿ]/g,"?");
+  // Guillemets et quotes
+  str = str.replace(/[«»]/g,'"').replace(/['']/g,"'").replace(/[""]/g,'"');
+  // Y-chapeau -> y_pred
+  str = str.replace(/[ŷŶ]/g,"y_pred");
+  // Supprimer tout ce qui reste hors Latin-1
+  str = str.replace(/[^\x00-\xFF]/g,"?");
   return str;
 }
 
+// s() = raccourci sanitize pour usage inline dans les doc.text()
+const s = (v) => sanitizePDF(v);
 
-// ── Génération du PDF via jsPDF (CDN) ─────────────────────────────────────────
+// =============================================================================
+// COLLECTE DES DONNEES DU RAPPORT
+// =============================================================================
+
+function collectReportData() {
+  return {
+    meta: {
+      title:       sanitizePDF(document.getElementById("reportTitle")?.value    || "Rapport PhysioAI Lab"),
+      author:      sanitizePDF(document.getElementById("reportAuthor")?.value   || ""),
+      project:     sanitizePDF(document.getElementById("reportProject")?.value  || ""),
+      description: sanitizePDF(document.getElementById("reportDescription")?.value || ""),
+      date:        new Date().toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" }),
+      orientation: document.getElementById("reportOrientation")?.value || "portrait",
+      format:      document.getElementById("reportFormat")?.value      || "A4",
+      logo:        document.getElementById("reportLogo")?.checked      ?? true,
+      pageNum:     document.getElementById("reportPageNum")?.checked   ?? true,
+    },
+    sections: {
+      data:       document.getElementById("rpt_data")?.checked,
+      stats:      document.getElementById("rpt_stats")?.checked,
+      regression: document.getElementById("rpt_regression")?.checked,
+      physical:   document.getElementById("rpt_physical")?.checked,
+      ai:         document.getElementById("rpt_ai")?.checked,
+      prediction: document.getElementById("rpt_prediction")?.checked,
+      decision:   document.getElementById("rpt_decision")?.checked,
+    },
+    data: {
+      x: state.xData,
+      y: state.yData,
+      n: state.xData.length,
+    },
+    results: {
+      regression: resultCache.regression,
+      physical:   resultCache.physical,
+      advisor:    resultCache.advisor,
+      prediction: state._lastPredictions?.res || null,
+    },
+  };
+}
+
+// =============================================================================
+// APERCU DU RAPPORT
+// =============================================================================
+
+function previewReport() {
+  const d = collectReportData();
+  const panel = document.getElementById("reportPreviewPanel");
+  const prev  = document.getElementById("reportPreview");
+  panel.style.display = "block";
+
+  const sectionLabels = {
+    data:"Donnees chargees", stats:"Statistiques descriptives",
+    regression:"Regression - meilleur modele", physical:"Modele physique",
+    ai:"Analyse IA & classement regressions", prediction:"Predictions",
+    decision:"Decision globale",
+  };
+  const active = Object.entries(d.sections).filter(([,v])=>v).map(([k])=>sectionLabels[k]).filter(Boolean);
+  const hasData = d.data.n > 0;
+
+  prev.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-secondary)">
+      <div style="color:var(--amber);font-size:12px;font-weight:700;margin-bottom:8px">${d.meta.title}</div>
+      <div class="metric-row"><span class="metric-label">Auteur</span><span>${d.meta.author||"—"}</span></div>
+      <div class="metric-row"><span class="metric-label">Projet</span><span>${d.meta.project||"—"}</span></div>
+      <div class="metric-row"><span class="metric-label">Date</span><span>${d.meta.date}</span></div>
+      <div class="metric-row"><span class="metric-label">Format</span><span>${d.meta.format} ${d.meta.orientation}</span></div>
+      <div class="metric-row"><span class="metric-label">Donnees</span>
+        <span class="${hasData?"good":"bad"} metric-value">${hasData?d.data.n+" points":"Aucune donnee chargee"}</span></div>
+      <div style="margin-top:8px;color:var(--text-muted);font-size:9px;text-transform:uppercase;letter-spacing:1px">
+        Sections (${active.length})
+      </div>
+      ${active.map(s=>`<div style="padding:2px 0;color:var(--text-secondary)">- ${s}</div>`).join("")}
+      <div style="margin-top:8px">
+        ${!resultCache.regression?'<div style="color:var(--amber)">Regression non calculee</div>':'<div style="color:var(--green)">Regression disponible</div>'}
+        ${!resultCache.advisor   ?'<div style="color:var(--amber)">Analyse IA non lancee</div>':  '<div style="color:var(--green)">Analyse IA disponible</div>'}
+        ${!resultCache.physical  ?'<div style="color:var(--text-muted)">Modele physique non calcule</div>':'<div style="color:var(--green)">Modele physique disponible</div>'}
+      </div>
+    </div>`;
+}
+
+// =============================================================================
+// GENERATION PDF — jsPDF professionnel
+// =============================================================================
+
 async function generatePDF() {
   const d = collectReportData();
   if (!d.data.n) {
-    showToast("Chargez des données avant de générer le rapport", "error"); return;
+    showToast("Chargez des donnees avant de generer le rapport", "error"); return;
   }
- 
-  showLoader("Génération du PDF…");
+
+  showLoader("Generation du PDF...");
   try {
-    // Charger jsPDF dynamiquement si pas déjà fait
     if (!window.jspdf) {
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
     }
     if (!window.jspdf?.jsPDF) {
       showToast("Impossible de charger jsPDF", "error"); return;
     }
- 
+
     const { jsPDF } = window.jspdf;
     const isLandscape = d.meta.orientation === "landscape";
-    const doc = new jsPDF({
-      orientation: isLandscape ? "l" : "p",
-      unit: "mm",
-      format: d.meta.format.toLowerCase(),
-    });
- 
-    const pw = doc.internal.pageSize.getWidth();
-    const ph = doc.internal.pageSize.getHeight();
-    const margin = 15;
-    const cw = pw - 2 * margin;
-    let y = margin;
- 
-    // ── Palette ───────────────────────────────────────────────────────────────
-    const COL = {
-      amber:  [255, 183,   0],
-      cyan:   [  0, 229, 200],
-      dark:   [ 13,  15,  20],
-      card:   [ 20,  23,  32],
-      light:  [240, 242, 247],
-      muted:  [139, 147, 168],
-      green:  [ 61, 255, 160],
-      red:    [255,  90,  90],
+    const doc = new jsPDF({ orientation: isLandscape?"l":"p", unit:"mm", format:d.meta.format.toLowerCase() });
+
+    const PW = doc.internal.pageSize.getWidth();
+    const PH = doc.internal.pageSize.getHeight();
+    const ML = 18, MR = 18, MT = 18;
+    const CW = PW - ML - MR;
+    let Y = MT;
+
+    // ── Palette de couleurs (RGB) ──────────────────────────────────────────────
+    const C = {
+      amber:   [255, 183,   0],
+      dark:    [ 25,  28,  40],
+      card:    [ 35,  40,  58],
+      white:   [255, 255, 255],
+      light:   [245, 247, 252],
+      muted:   [120, 130, 155],
+      green:   [ 40, 180, 100],
+      red:     [210,  60,  60],
+      blue:    [ 50, 100, 200],
+      gray:    [200, 205, 215],
     };
- 
-    function addPage() {
-      if (d.meta.pageNum) {
-        doc.setFontSize(8); doc.setTextColor(...COL.muted);
-        const pg = doc.internal.getNumberOfPages();
-        doc.text(`Page ${pg}`, pw - margin, ph - 8, {align:"right"});
-        doc.text("PhysioAI Lab", margin, ph - 8);
-      }
+
+    // ── Helpers d'écriture ─────────────────────────────────────────────────────
+
+    function newPage() {
+      // Pied de page courant
+      _footer();
       doc.addPage();
-      y = margin;
+      Y = MT;
+      _header();
+      Y += 8;
     }
- 
-    function checkPage(needed = 20) {
-      if (y + needed > ph - 20) addPage();
+
+    function _header() {
+      doc.setFillColor(...C.dark);
+      doc.rect(0, 0, PW, 10, "F");
+      doc.setFontSize(7); doc.setFont("helvetica","bold");
+      doc.setTextColor(...C.amber);
+      doc.text("PhysioAI Lab", ML, 7);
+      doc.setFont("helvetica","normal"); doc.setTextColor(...C.muted);
+      doc.text(d.meta.title.substring(0, 60), PW - MR, 7, {align:"right"});
     }
- 
-    function sectionTitle(title) {
-      checkPage(16);
-      doc.setFillColor(...COL.amber);
-      doc.rect(margin, y, 3, 8, "F");
-      doc.setFontSize(11); doc.setFont(undefined, "bold");
-      doc.setTextColor(...COL.dark);
-      doc.text(title, margin + 6, y + 6);
-      y += 12;
+
+    function _footer() {
+      if (!d.meta.pageNum) return;
+      const pg = doc.internal.getNumberOfPages();
+      doc.setPage(pg);
+      doc.setDrawColor(...C.gray); doc.setLineWidth(0.2);
+      doc.line(ML, PH-10, PW-MR, PH-10);
+      doc.setFontSize(7); doc.setFont("helvetica","normal"); doc.setTextColor(...C.muted);
+      doc.text("PhysioAI Lab - Rapport genere automatiquement", ML, PH-6);
+      doc.text("Page " + pg, PW-MR, PH-6, {align:"right"});
     }
- 
-    function row(label, value, valueColor) {
-      checkPage(7);
-      doc.setFontSize(9); doc.setFont(undefined, "normal");
-      doc.setTextColor(...COL.muted);
-      doc.text(sanitizePDF(String(label || "")), margin, y);
-      doc.setTextColor(...(valueColor || COL.dark));
-      doc.text(sanitizePDF(String(value ?? "")), margin + cw * 0.5, y);
-      doc.setDrawColor(230, 230, 230);
-      doc.line(margin, y + 1.5, margin + cw, y + 1.5);
-      y += 7;
+
+    function checkY(needed) {
+      if (Y + needed > PH - 16) newPage();
     }
- 
-    function text(txt, size = 9, color) {
-      checkPage(6);
-      const clean = sanitizePDF(String(txt || ""));
-      doc.setFontSize(size);
-      doc.setFont(undefined, "normal");
-      doc.setTextColor(...(color || COL.dark));
-      const lines = doc.splitTextToSize(clean, cw);
-      doc.text(lines, margin, y);
-      y += lines.length * (size * 0.45) + 2;
+
+    function sectionTitle(txt) {
+      checkY(14);
+      Y += 3;
+      doc.setFillColor(...C.amber);
+      doc.rect(ML, Y, CW, 8, "F");
+      doc.setFontSize(10); doc.setFont("helvetica","bold");
+      doc.setTextColor(...C.dark);
+      doc.text(s(txt), ML + 4, Y + 5.5);
+      Y += 11;
     }
- 
+
+    function subTitle(txt) {
+      checkY(9);
+      doc.setFontSize(8.5); doc.setFont("helvetica","bold");
+      doc.setTextColor(...C.dark);
+      doc.text(s(txt), ML, Y);
+      doc.setDrawColor(...C.amber); doc.setLineWidth(0.4);
+      doc.line(ML, Y + 1.5, ML + doc.getTextWidth(s(txt)) + 2, Y + 1.5);
+      doc.setLineWidth(0.2);
+      Y += 7;
+    }
+
+    function kv(label, val, color) {
+      checkY(7);
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica","normal"); doc.setTextColor(...C.muted);
+      doc.text(s(label), ML + 2, Y);
+      doc.setFont("helvetica","bold");
+      doc.setTextColor(...(color || C.dark));
+      doc.text(s(String(val ?? "-")), ML + CW * 0.48, Y);
+      doc.setDrawColor(...C.gray); doc.setLineWidth(0.15);
+      doc.line(ML, Y + 1.5, ML + CW, Y + 1.5);
+      Y += 7;
+    }
+
+    function para(txt, sz, color) {
+      if (!txt) return;
+      const clean = s(txt);
+      if (!clean.trim()) return;
+      checkY(8);
+      doc.setFontSize(sz || 8.5);
+      doc.setFont("helvetica","normal");
+      doc.setTextColor(...(color || C.dark));
+      const lines = doc.splitTextToSize(clean, CW - 4);
+      checkY(lines.length * (sz || 8.5) * 0.45 + 3);
+      doc.text(lines, ML + 2, Y);
+      Y += lines.length * ((sz || 8.5) * 0.45) + 3;
+    }
+
+    function badge(txt, bg, fg) {
+      checkY(8);
+      const clean = s(txt);
+      const w = doc.getTextWidth(clean) + 4;
+      doc.setFillColor(...bg); doc.setDrawColor(...bg);
+      doc.roundedRect(ML, Y - 4, w, 6, 1, 1, "F");
+      doc.setFontSize(7.5); doc.setFont("helvetica","bold"); doc.setTextColor(...fg);
+      doc.text(clean, ML + 2, Y);
+      Y += 7;
+    }
+
     function separator() {
-      checkPage(5);
-      doc.setDrawColor(...COL.amber); doc.setLineWidth(0.3);
-      doc.line(margin, y, margin + cw, y);
-      y += 6;
+      checkY(6);
+      doc.setDrawColor(...C.gray); doc.setLineWidth(0.2);
+      doc.line(ML, Y, ML + CW, Y);
+      Y += 5;
     }
- 
-    // ════════════════════════════════════════════════════
+
+    function tableHeader(cols) {
+      checkY(8);
+      doc.setFillColor(...C.dark);
+      doc.rect(ML, Y - 4, CW, 7, "F");
+      doc.setFontSize(7.5); doc.setFont("helvetica","bold"); doc.setTextColor(...C.amber);
+      let x = ML + 2;
+      cols.forEach(([label, w]) => { doc.text(s(label), x, Y); x += w; });
+      Y += 5;
+    }
+
+    function tableRow(cols, even) {
+      checkY(7);
+      if (even) { doc.setFillColor(245,247,252); doc.rect(ML, Y-4, CW, 6.5, "F"); }
+      doc.setFontSize(8); doc.setFont("helvetica","normal"); doc.setTextColor(...C.dark);
+      let x = ML + 2;
+      cols.forEach(([val, w, color]) => {
+        if (color) doc.setTextColor(...color);
+        else doc.setTextColor(...C.dark);
+        doc.text(s(String(val ?? "-")).substring(0, 35), x, Y);
+        x += w;
+      });
+      Y += 6.5;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // PAGE DE GARDE
-    // ════════════════════════════════════════════════════
-    doc.setFillColor(...COL.dark);
-    doc.rect(0, 0, pw, ph, "F");
- 
-    // Bande dorée supérieure
-    doc.setFillColor(...COL.amber);
-    doc.rect(0, 0, pw, 2, "F");
- 
-    // Logo / Titre principal
-    doc.setFontSize(28); doc.setFont(undefined, "bold");
-    doc.setTextColor(...COL.amber);
-    doc.text("PhysioAI", pw / 2, 55, {align:"center"});
-    doc.setFontSize(28); doc.setTextColor(...COL.light);
-    doc.text("Lab", pw / 2 + doc.getTextWidth("PhysioAI") / 2 - 10, 55, {align:"left"});
- 
-    doc.setFontSize(11); doc.setFont(undefined, "normal");
-    doc.setTextColor(...COL.muted);
-    doc.text("Modélisation physico-chimique assistée par IA", pw / 2, 64, {align:"center"});
- 
-    // Ligne séparatrice
-    doc.setDrawColor(...COL.amber); doc.setLineWidth(0.5);
-    doc.line(pw/2 - 40, 70, pw/2 + 40, 70);
- 
-    // Titre du rapport
-    doc.setFontSize(18); doc.setFont(undefined, "bold");
-    doc.setTextColor(...COL.light);
-    const titleLines = doc.splitTextToSize(d.meta.title, pw - 40);
-    doc.text(titleLines, pw / 2, 82, {align:"center"});
- 
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // Fond sombre
+    doc.setFillColor(...C.dark);
+    doc.rect(0, 0, PW, PH, "F");
+
+    // Bande dorée top
+    doc.setFillColor(...C.amber);
+    doc.rect(0, 0, PW, 3, "F");
+
+    // Ligne decorative
+    doc.setDrawColor(...C.amber); doc.setLineWidth(0.3);
+    doc.line(ML, PH * 0.28, PW - MR, PH * 0.28);
+
+    // Logo + titre app
+    doc.setFontSize(36); doc.setFont("helvetica","bold");
+    doc.setTextColor(...C.amber);
+    doc.text("PhysioAI", PW / 2 - 22, PH * 0.25, {align:"center"});
+    doc.setTextColor(...C.white);
+    doc.text("Lab", PW / 2 + 28, PH * 0.25, {align:"center"});
+
+    doc.setFontSize(10); doc.setFont("helvetica","normal");
+    doc.setTextColor(...C.muted);
+    doc.text("Modelisation physico-chimique assistee par IA", PW / 2, PH * 0.25 + 9, {align:"center"});
+
+    // Titre du rapport (boite blanche)
+    const titleClean = s(d.meta.title);
+    doc.setFillColor(...C.card);
+    doc.setDrawColor(...C.amber); doc.setLineWidth(0.4);
+    doc.roundedRect(ML + 10, PH * 0.33, CW - 20, 22, 2, 2, "FD");
+    doc.setFontSize(13); doc.setFont("helvetica","bold"); doc.setTextColor(...C.white);
+    const titleLines = doc.splitTextToSize(titleClean, CW - 30);
+    doc.text(titleLines, PW / 2, PH * 0.33 + 8, {align:"center"});
+
     // Métadonnées
-    let yMeta = 105;
-    const metas = [
-      ["Auteur",  d.meta.author  || "—"],
-      ["Projet",  d.meta.project || "—"],
-      ["Date",    d.meta.date],
-      ["Données", `${d.data.n} points chargés`],
+    let yM = PH * 0.62;
+    const metaRows = [
+      ["Auteur",  d.meta.author  || "-"],
+      ["Projet",  d.meta.project || "-"],
+      ["Date",    s(d.meta.date)],
+      ["Donnees", d.data.n + " points charges"],
     ];
-    metas.forEach(([k, v]) => {
-      doc.setFontSize(9); doc.setFont(undefined, "normal");
-      doc.setTextColor(...COL.muted);
-      doc.text(k + " :", pw/2 - 35, yMeta, {align:"right"});
-      doc.setTextColor(...COL.light);
-      doc.text(v, pw/2 - 30, yMeta);
-      yMeta += 9;
+    metaRows.forEach(([k, v]) => {
+      doc.setFontSize(8.5); doc.setFont("helvetica","bold"); doc.setTextColor(...C.muted);
+      doc.text(k + " :", PW / 2 - 5, yM, {align:"right"});
+      doc.setFont("helvetica","normal"); doc.setTextColor(...C.white);
+      doc.text(s(v), PW / 2 + 3, yM);
+      yM += 8;
     });
- 
+
+    // Description
     if (d.meta.description) {
-      doc.setFontSize(9); doc.setTextColor(...COL.muted);
-      const descLines = doc.splitTextToSize(d.meta.description, pw - 60);
-      doc.text(descLines, pw / 2, yMeta + 5, {align:"center"});
+      doc.setFontSize(8); doc.setFont("helvetica","italic"); doc.setTextColor(...C.muted);
+      const dLines = doc.splitTextToSize(s(d.meta.description), CW - 20);
+      doc.text(dLines, PW / 2, yM + 5, {align:"center"});
     }
- 
-    // Bande dorée inférieure
-    doc.setFillColor(...COL.amber);
-    doc.rect(0, ph - 2, pw, 2, "F");
- 
-    // ════════════════════════════════════════════════════
-    // PAGES DE CONTENU
-    // ════════════════════════════════════════════════════
+
+    // Bande dorée bas
+    doc.setFillColor(...C.amber); doc.rect(0, PH - 3, PW, 3, "F");
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PAGE 2 — CONTENU
+    // ══════════════════════════════════════════════════════════════════════════
+
     doc.addPage();
-    doc.setFillColor(248, 249, 252);
-    doc.rect(0, 0, pw, ph, "F");
-    y = margin;
- 
-    // ── En-tête page contenu ──────────────────────────────────────────────────
-    doc.setFillColor(...COL.dark);
-    doc.rect(0, 0, pw, 12, "F");
-    doc.setFontSize(9); doc.setTextColor(...COL.amber); doc.setFont(undefined, "bold");
-    doc.text("PhysioAI Lab", margin, 8);
-    doc.setTextColor(...COL.muted); doc.setFont(undefined, "normal");
-    doc.text(d.meta.title, pw - margin, 8, {align:"right"});
-    y = 20;
- 
-    // ── Table des matières ────────────────────────────────────────────────────
-    sectionTitle("Table des matières");
-    const tocItems = [];
-    if (d.sections.data)       tocItems.push("1. Données chargées");
-    if (d.sections.stats)      tocItems.push("2. Statistiques descriptives");
-    if (d.sections.regression) tocItems.push("3. Régression — meilleur modèle");
-    if (d.sections.physical)   tocItems.push("4. Modèle physique");
-    if (d.sections.ai)         tocItems.push("5. Analyse IA & classement régressions");
-    if (d.sections.prediction) tocItems.push("6. Prédictions");
-    if (d.sections.decision)   tocItems.push("7. Décision globale");
-    tocItems.forEach(item => {
-      checkPage(7);
-      doc.setFontSize(9); doc.setTextColor(...COL.dark);
-      doc.text("> " + sanitizePDF(item), margin + 5, y); y += 7;
+    doc.setFillColor(...C.light); doc.rect(0, 0, PW, PH, "F");
+    Y = MT; _header(); Y += 8;
+
+    // Table des matières
+    sectionTitle("Sommaire");
+    const tocLabels = {
+      data:"1. Donnees chargees", stats:"2. Statistiques descriptives",
+      regression:"3. Regression - meilleur modele", physical:"4. Modele physique",
+      ai:"5. Analyse IA - classement regressions", prediction:"6. Predictions",
+      decision:"7. Decision globale",
+    };
+    Object.entries(d.sections).filter(([,v])=>v).forEach(([k]) => {
+      if (!tocLabels[k]) return;
+      checkY(7);
+      doc.setFontSize(8.5); doc.setFont("helvetica","normal"); doc.setTextColor(...C.dark);
+      doc.text("- " + tocLabels[k], ML + 5, Y);
+      doc.setDrawColor(...C.gray); doc.setLineWidth(0.1);
+      doc.line(ML + 5 + doc.getTextWidth("- " + tocLabels[k]) + 2, Y,
+               ML + CW - 15, Y);
+      Y += 7;
     });
     separator();
- 
-    // ── 1. DONNÉES ────────────────────────────────────────────────────────────
+
+    // ── 1. DONNEES ────────────────────────────────────────────────────────────
+
     if (d.sections.data && d.data.n) {
-      sectionTitle("1. Données chargées");
-      row("Nombre de points", d.data.n);
-      row("x — min", d.data.x.length ? Math.min(...d.data.x).toFixed(4) : "—");
-      row("x — max", d.data.x.length ? Math.max(...d.data.x).toFixed(4) : "—");
-      row("y — min", d.data.y.length ? Math.min(...d.data.y).toFixed(4) : "—");
-      row("y — max", d.data.y.length ? Math.max(...d.data.y).toFixed(4) : "—");
-      // Échantillon de données
+      sectionTitle("1. Donnees chargees");
+      kv("Nombre de points", d.data.n);
+      kv("x - min", Math.min(...d.data.x).toFixed(4));
+      kv("x - max", Math.max(...d.data.x).toFixed(4));
+      kv("y - min", Math.min(...d.data.y).toFixed(6));
+      kv("y - max", Math.max(...d.data.y).toFixed(6));
       if (d.data.x.length) {
-        y += 3;
-        text("Échantillon (8 premiers points) :", 8, COL.muted);
-        const sample = d.data.x.slice(0, 8).map((x, i) =>
-          `x=${x.toFixed(3)}, y=${(d.data.y[i]||0).toFixed(4)}`).join("   ");
-        text(sample, 8, COL.dark);
-      }
-      separator();
-    }
- 
-    // ── 2. STATISTIQUES ───────────────────────────────────────────────────────
-    if (d.sections.stats && d.data.n) {
-      sectionTitle("2. Statistiques descriptives");
-      const yd = d.data.y;
-      const mean = yd.reduce((a,b)=>a+b,0)/yd.length;
-      const std  = Math.sqrt(yd.reduce((a,b)=>a+(b-mean)**2,0)/yd.length);
-      const sorted = [...yd].sort((a,b)=>a-b);
-      const median = sorted[Math.floor(sorted.length/2)];
-      row("Moyenne (y)",  mean.toFixed(6));
-      row("Écart-type",   std.toFixed(6));
-      row("Médiane",      median.toFixed(6));
-      row("Min",          Math.min(...yd).toFixed(6));
-      row("Max",          Math.max(...yd).toFixed(6));
-      row("Étendue",      (Math.max(...yd) - Math.min(...yd)).toFixed(6));
-      separator();
-    }
- 
-    // ── 3. RÉGRESSION ─────────────────────────────────────────────────────────
-    if (d.sections.regression && d.results.regression) {
-      sectionTitle("3. Régression — meilleur modèle");
-      const reg = d.results.regression;
-      const best = reg.best_model || reg.model || "?";
-      const bRes = reg.all_models?.[best] || reg;
-      const m    = bRes.metrics || {};
-      row("Meilleur modèle", best);
-      row("Équation",        bRes.equation || "—");
-      row("R²",              (m.r2 ?? "—").toString(),
-          m.r2 > 0.95 ? COL.green : m.r2 > 0.80 ? COL.amber : COL.red);
-      row("RMSE",            (m.rmse ?? "—").toString());
-      row("MAE",             (m.mae  ?? "—").toString());
-      // Classement tous modèles
-      if (reg.all_models) {
-        y += 3;
-        text("Classement de tous les modèles testés :", 8, COL.muted);
-        const ranking = Object.entries(reg.all_models)
-          .filter(([,v]) => v.metrics?.r2 !== undefined)
-          .sort(([,a],[,b]) => b.metrics.r2 - a.metrics.r2);
-        ranking.forEach(([name, res], i) => {
-          const r2  = res.metrics?.r2 ?? 0;
-          const col = r2 > 0.95 ? COL.green : r2 > 0.80 ? COL.amber : COL.muted;
-          checkPage(7);
-          doc.setFontSize(8); doc.setFont(undefined, "normal");
-          doc.setTextColor(...COL.muted);
-          doc.text(sanitizePDF(`#${i+1}  ${name}`), margin + 5, y);
-          doc.setTextColor(...col);
-          doc.text(`R²=${r2.toFixed(4)}`, margin + 80, y);
-          doc.setTextColor(...COL.muted);
-          doc.text(sanitizePDF(res.equation?.substring(0, 50) || ""), margin + 110, y);
-          y += 6;
-        });
-      }
-      separator();
-    }
- 
-    // ── 4. MODÈLE PHYSIQUE ────────────────────────────────────────────────────
-    if (d.sections.physical && d.results.physical) {
-      sectionTitle("4. Modèle physique");
-      const ph = d.results.physical;
-      row("Modèle",    ph.model || "—");
-      row("Équation",  ph.equation || "—");
-      if (ph.r2 !== undefined) row("R²", ph.r2.toFixed(6),
-        ph.r2 > 0.95 ? COL.green : COL.amber);
-      if (ph.params) {
-        text("Paramètres calibrés :", 8, COL.muted);
-        Object.entries(ph.params).forEach(([k, v]) => {
-          if (typeof v === "number") row(k, v.toFixed(6));
-        });
-      }
-      separator();
-    }
- 
-    // ── 5. ANALYSE IA ─────────────────────────────────────────────────────────
-    if (d.sections.ai && d.results.advisor) {
-      sectionTitle("5. Analyse IA & classement des régressions");
-      const adv = d.results.advisor;
-      const s   = adv.summary || {};
-      row("Tendance",         s.trend || "—");
-      row("Bruit",            s.noise || "—");
-      row("Meilleure régr.",  s.best_regression || "—");
-      row("Meilleur R²",      (s.best_r2 || 0).toFixed(4));
-      // Classement régressions
-      const ranking = adv.recommendations?.regression_ranking || [];
-      if (ranking.length) {
-        y += 3;
-        text("Classement complet des 7 régressions :", 8, COL.muted);
-        ranking.forEach((r, i) => {
-          const col = r.r2 > 0.95 ? COL.green : r.r2 > 0.80 ? COL.amber : COL.muted;
-          checkPage(7);
-          doc.setFontSize(8); doc.setTextColor(...COL.muted);
-          doc.text(sanitizePDF(`#${i+1}  ${r.model}`), margin + 5, y);
-          doc.setTextColor(...col);
-          doc.text(sanitizePDF(`R²=${r.r2?.toFixed(4) || "—"}`), margin + 65, y);
-          doc.setTextColor(...COL.muted);
-          doc.text(sanitizePDF((r.equation || "").substring(0, 55)), margin + 95, y);
-          y += 6;
-        });
-      }
-      // Recommandations
-      const recs = adv.recommendations?.all_recommendations || [];
-      if (recs.length) {
-        y += 4;
-        text("Recommandations :", 8, COL.muted);
-        recs.slice(0, 5).forEach((r, i) => {
-          checkPage(10);
-          doc.setFontSize(8.5); doc.setFont(undefined, "bold");
-          doc.setTextColor(...COL.dark);
-          doc.text(sanitizePDF(`${i+1}. [${r.type}] ${r.model}`), margin + 5, y);
-          doc.setFont(undefined, "normal"); doc.setTextColor(...COL.muted);
-          const reasonLines = doc.splitTextToSize(r.reason || "", cw - 10);
-          y += 5;
-          doc.text(reasonLines, margin + 8, y);
-          y += reasonLines.length * 4 + 3;
-        });
-      }
-      separator();
-    }
- 
-    // ── 6. PRÉDICTIONS ────────────────────────────────────────────────────────
-    if (d.sections.prediction && d.results.prediction) {
-      sectionTitle("6. Prédictions");
-      const pred = d.results.prediction;
-      row("Modèle utilisé",   pred.model_type || "—");
-      row("R² entraînement",  (pred.train_r2 || 0).toFixed(6),
-          pred.train_r2 > 0.95 ? COL.green : COL.amber);
-      row("RMSE entraînement",(pred.train_rmse || 0).toFixed(6));
-      row("N prédictions",    pred.n_predict || pred.predictions?.length || 0);
-      if (pred.pred_stats) {
-        const ps = pred.pred_stats;
-        row("Moy. prédite",   ps.mean?.toFixed(4) || "—");
-        row("Plage [min,max]",`[${ps.min?.toFixed(4)||"—"}, ${ps.max?.toFixed(4)||"—"}]`);
-      }
-      if (pred.equation) row("Équation", pred.equation);
-      if (pred.ci_level) row("Intervalle confiance", pred.ci_level, COL.cyan);
-      // Tableau résultats
-      if (pred.predictions?.length && pred.X_predict?.length) {
-        y += 4;
-        text("Tableau des prédictions :", 8, COL.muted);
-        const hasCI = !!(pred.ci_lower && pred.ci_upper);
-        // En-têtes
-        checkPage(8);
-        doc.setFillColor(...COL.dark); doc.rect(margin, y-4, cw, 7, "F");
-        doc.setFontSize(8); doc.setFont(undefined, "bold"); doc.setTextColor(...COL.amber);
-        doc.text("x",     margin+3, y);
-        doc.text("ŷ",     margin+40, y);
-        if (hasCI) { doc.text("IC inf.", margin+80, y); doc.text("IC sup.", margin+115, y); }
-        y += 7;
-        pred.predictions.slice(0, 20).forEach((yp, i) => {
-          checkPage(6);
-          doc.setFillColor(i%2===0 ? 248 : 253, i%2===0 ? 249 : 253, 252);
-          doc.rect(margin, y-4, cw, 6, "F");
-          doc.setFont(undefined, "normal"); doc.setTextColor(...COL.dark); doc.setFontSize(8);
-          doc.text((pred.X_predict[i] ?? "—").toString().substring(0,10), margin+3, y);
-          doc.setTextColor(...COL.cyan);
-          doc.text(yp.toFixed(6), margin+40, y);
-          if (hasCI) {
-            doc.setTextColor(...COL.muted);
-            doc.text((pred.ci_lower[i]||0).toFixed(4), margin+80, y);
-            doc.text((pred.ci_upper[i]||0).toFixed(4), margin+115, y);
-          }
-          y += 6;
-        });
-        if (pred.predictions.length > 20) {
-          text(`… et ${pred.predictions.length - 20} prédictions supplémentaires`, 7, COL.muted);
+        Y += 2; subTitle("Echantillon (8 premiers points)");
+        tableHeader([["x", 35], ["y", 40], ["x", 35], ["y", 40]]);
+        const N = Math.min(8, d.data.x.length);
+        for (let i = 0; i < N; i += 2) {
+          const x1 = d.data.x[i].toFixed(3), y1 = d.data.y[i].toFixed(4);
+          const x2 = i+1 < N ? d.data.x[i+1].toFixed(3) : "-";
+          const y2 = i+1 < N ? d.data.y[i+1].toFixed(4) : "-";
+          tableRow([[x1,35],[y1,40],[x2,35],[y2,40]], i%4===0);
         }
       }
       separator();
     }
- 
-    // ── 7. DÉCISION GLOBALE ───────────────────────────────────────────────────
-    if (d.sections.decision) {
-      sectionTitle("7. Décision globale");
-      // Résumé IA Advisor
-      if (d.results.advisor) {
-        const pa = d.results.advisor.priority_action || "";
-        if (pa) { text(pa, 10, COL.dark); y += 3; }
-      }
-      text("Action prioritaire recommandée par PhysioAI Lab.", 9, COL.muted);
+
+    // ── 2. STATISTIQUES ───────────────────────────────────────────────────────
+
+    if (d.sections.stats && d.data.n) {
+      sectionTitle("2. Statistiques descriptives");
+      const yd = d.data.y;
+      const n  = yd.length;
+      const mean = yd.reduce((a,b)=>a+b,0)/n;
+      const std  = Math.sqrt(yd.reduce((a,b)=>a+(b-mean)**2,0)/n);
+      const sorted = [...yd].sort((a,b)=>a-b);
+      const q1 = sorted[Math.floor(n*0.25)];
+      const median = sorted[Math.floor(n/2)];
+      const q3 = sorted[Math.floor(n*0.75)];
+      kv("Nombre de points", n);
+      kv("Moyenne",   mean.toFixed(6));
+      kv("Ecart-type", std.toFixed(6));
+      kv("Q1 (25%)",  q1?.toFixed(6));
+      kv("Mediane",   median.toFixed(6));
+      kv("Q3 (75%)",  q3?.toFixed(6));
+      kv("Min",       Math.min(...yd).toFixed(6));
+      kv("Max",       Math.max(...yd).toFixed(6));
+      kv("Etendue",   (Math.max(...yd)-Math.min(...yd)).toFixed(6));
+      kv("CV (%)",    (std/Math.abs(mean)*100).toFixed(2) + "%");
       separator();
     }
- 
-    // ── PIED DE PAGE DERNIÈRE PAGE ────────────────────────────────────────────
-    if (d.meta.pageNum) {
-      const pg = doc.internal.getNumberOfPages();
-      doc.setPage(pg);
-      doc.setFontSize(8); doc.setTextColor(...COL.muted);
-      doc.text(`Page ${pg}`, pw - margin, ph - 8, {align:"right"});
-      doc.text("PhysioAI Lab", margin, ph - 8);
+
+    // ── 3. REGRESSION ─────────────────────────────────────────────────────────
+
+    if (d.sections.regression && d.results.regression) {
+      sectionTitle("3. Regression - meilleur modele");
+      const reg  = d.results.regression;
+      const best = reg.best_model || reg.model || "?";
+      const bRes = reg.all_models?.[best] || reg;
+      const m    = bRes.metrics || {};
+      const r2   = m.r2 ?? 0;
+      kv("Meilleur modele", best);
+      kv("Equation",        bRes.equation || "-");
+      kv("R2",              r2.toFixed(6), r2>0.95?C.green:r2>0.8?[180,120,0]:C.red);
+      kv("RMSE",            (m.rmse ?? "-").toString());
+      kv("MAE",             (m.mae  ?? "-").toString());
+
+      // Classement complet
+      if (reg.all_models) {
+        Y += 3; subTitle("Classement de tous les modeles testes");
+        const ranking = Object.entries(reg.all_models)
+          .filter(([,v]) => v.metrics?.r2 !== undefined)
+          .sort(([,a],[,b]) => b.metrics.r2 - a.metrics.r2);
+        tableHeader([["Rang",12],["Modele",38],["R2",22],["Equation",CW-72]]);
+        ranking.forEach(([name, res], i) => {
+          const rv  = res.metrics?.r2 ?? 0;
+          const col = rv > 0.95 ? C.green : rv > 0.8 ? [150,100,0] : C.muted;
+          const eq  = (res.equation || "").substring(0, 40);
+          tableRow([["#"+(i+1),12],[name,38],[rv.toFixed(4),22],[eq,CW-72]], i%2===0);
+        });
+      }
+      separator();
     }
- 
+
+    // ── 4. MODELE PHYSIQUE ────────────────────────────────────────────────────
+
+    if (d.sections.physical && d.results.physical) {
+      sectionTitle("4. Modele physique");
+      const ph = d.results.physical;
+      kv("Modele",    ph.model || "-");
+      kv("Equation",  ph.equation || "-");
+      if (ph.r2 !== undefined)
+        kv("R2", ph.r2.toFixed(6), ph.r2>0.95?C.green:[180,120,0]);
+      if (ph.params) {
+        Y += 2; subTitle("Parametres calibres");
+        Object.entries(ph.params).forEach(([k, v]) => {
+          if (typeof v === "number") kv(k, v.toFixed(6));
+        });
+      }
+      separator();
+    }
+
+    // ── 5. ANALYSE IA ─────────────────────────────────────────────────────────
+
+    if (d.sections.ai && d.results.advisor) {
+      sectionTitle("5. Analyse IA - classement des regressions");
+      const adv = d.results.advisor;
+      const sm  = adv.summary || {};
+      kv("Tendance",            sm.trend || "-");
+      kv("Bruit",               sm.noise || "-");
+      kv("Meilleure regression",sm.best_regression || "-");
+      kv("Meilleur R2",         (sm.best_r2 || 0).toFixed(4),
+         (sm.best_r2||0)>0.95?C.green:[150,100,0]);
+
+      // Classement regressions
+      const ranking = adv.recommendations?.regression_ranking || [];
+      if (ranking.length) {
+        Y += 3; subTitle("Classement complet - 7 modeles testes");
+        tableHeader([["Rang",12],["Modele",38],["R2",22],["Equation",CW-72]]);
+        ranking.forEach((r, i) => {
+          const col = r.r2>0.95?C.green:r.r2>0.8?[150,100,0]:C.muted;
+          tableRow([
+            ["#"+(i+1), 12],
+            [r.model, 38],
+            [r.r2?.toFixed(4)||"-", 22, col],
+            [(r.equation||"").substring(0,40), CW-72],
+          ], i%2===0);
+        });
+      }
+
+      // Recommandations
+      const recs = adv.recommendations?.all_recommendations || [];
+      if (recs.length) {
+        Y += 4; subTitle("Recommandations");
+        recs.slice(0,5).forEach((r, i) => {
+          checkY(16);
+          doc.setFillColor(245,247,252);
+          doc.rect(ML, Y-2, CW, 14, "F");
+          doc.setFontSize(8.5); doc.setFont("helvetica","bold"); doc.setTextColor(...C.dark);
+          doc.text(s((i+1)+". ["+r.type+"] "+r.model), ML+3, Y+4);
+          doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...C.muted);
+          const lines = doc.splitTextToSize(s(r.reason||""), CW-6);
+          doc.text(lines[0]||"", ML+5, Y+10);
+          Y += 16;
+        });
+      }
+
+      // Alertes
+      const warns = adv.recommendations?.warnings || [];
+      if (warns.length) {
+        Y += 2; subTitle("Alertes qualite");
+        warns.forEach(w => para(w, 8, [180,80,0]));
+      }
+      separator();
+    }
+
+    // ── 6. PREDICTIONS ────────────────────────────────────────────────────────
+
+    if (d.sections.prediction && d.results.prediction) {
+      sectionTitle("6. Predictions");
+      const pred = d.results.prediction;
+      kv("Modele utilise",    pred.model_type || "-");
+      kv("R2 entrainement",   (pred.train_r2||0).toFixed(6),
+         (pred.train_r2||0)>0.95?C.green:[150,100,0]);
+      kv("RMSE entrainement", (pred.train_rmse||0).toFixed(6));
+      kv("N predictions",     pred.n_predict || pred.predictions?.length || 0);
+      if (pred.equation) kv("Equation", pred.equation);
+      if (pred.pred_stats) {
+        const ps = pred.pred_stats;
+        kv("Moyenne predite", ps.mean?.toFixed(4)||"-");
+        kv("Ecart-type pred.", ps.std?.toFixed(4)||"-");
+        kv("Min predit",      ps.min?.toFixed(4)||"-");
+        kv("Max predit",      ps.max?.toFixed(4)||"-");
+      }
+      if (pred.ci_level) kv("Intervalle de confiance", pred.ci_level, C.blue);
+
+      // Tableau des predictions
+      if (pred.predictions?.length && pred.X_predict?.length) {
+        Y += 3; subTitle("Tableau des predictions");
+        const hasCI = !!(pred.ci_lower && pred.ci_upper);
+        if (hasCI) {
+          tableHeader([["x",30],["y_pred",38],["IC inf.",35],["IC sup.",35],["sigma",CW-138]]);
+        } else {
+          tableHeader([["x",40],["y_pred",50],["sigma",CW-90]]);
+        }
+        pred.predictions.slice(0, 25).forEach((yp, i) => {
+          if (hasCI) {
+            tableRow([
+              [pred.X_predict[i]?.toFixed(4)||"-", 30],
+              [yp.toFixed(6), 38, C.blue],
+              [(pred.ci_lower[i]||0).toFixed(4), 35, C.muted],
+              [(pred.ci_upper[i]||0).toFixed(4), 35, C.muted],
+              [(pred.ci_std?.[i]||0).toFixed(4), CW-138, C.muted],
+            ], i%2===0);
+          } else {
+            tableRow([
+              [pred.X_predict[i]?.toFixed(4)||"-", 40],
+              [yp.toFixed(6), 50, C.blue],
+              ["-", CW-90, C.muted],
+            ], i%2===0);
+          }
+        });
+        if (pred.predictions.length > 25) {
+          Y += 2;
+          para("... et "+(pred.predictions.length-25)+" predictions supplementaires", 7.5, C.muted);
+        }
+      }
+      separator();
+    }
+
+    // ── 7. DECISION GLOBALE ───────────────────────────────────────────────────
+
+    if (d.sections.decision) {
+      sectionTitle("7. Decision globale");
+      if (d.results.advisor?.priority_action) {
+        para(d.results.advisor.priority_action, 9, C.dark);
+      }
+      if (d.results.regression) {
+        const best = d.results.regression.best_model || d.results.regression.model || "?";
+        const bRes = d.results.regression.all_models?.[best] || d.results.regression;
+        const r2   = bRes.metrics?.r2 ?? 0;
+        Y += 3;
+        doc.setFillColor(...C.card);
+        doc.rect(ML, Y, CW, 18, "F");
+        doc.setFontSize(9); doc.setFont("helvetica","bold"); doc.setTextColor(...C.amber);
+        doc.text("Modele recommande : " + s(best), ML+4, Y+7);
+        doc.setFontSize(8.5); doc.setFont("helvetica","normal"); doc.setTextColor(...C.muted);
+        doc.text("R2 = " + r2.toFixed(4) + "  |  Equation : " + s((bRes.equation||"").substring(0,50)), ML+4, Y+14);
+        Y += 22;
+      }
+      para("Ce rapport a ete genere automatiquement par PhysioAI Lab.", 7.5, C.muted);
+      separator();
+    }
+
+    // ── Pied de page dernière page ────────────────────────────────────────────
+    _footer();
+
     // ── Sauvegarde ────────────────────────────────────────────────────────────
-    const filename = `PhysioAI_Rapport_${new Date().toISOString().slice(0,10)}.pdf`;
+    const filename = "PhysioAI_Rapport_" + new Date().toISOString().slice(0,10) + ".pdf";
     doc.save(filename);
- 
+
+    const pg = doc.internal.getNumberOfPages();
     const elStatus = document.getElementById("reportStatus");
     elStatus.style.display = "block";
     elStatus.innerHTML = `
-      <h4>✓ PDF généré avec succès</h4>
+      <h4>PDF genere avec succes</h4>
       <div class="metric-row"><span class="metric-label">Fichier</span>
         <span class="metric-value good">${filename}</span></div>
       <div class="metric-row"><span class="metric-label">Pages</span>
-        <span class="metric-value">${doc.internal.getNumberOfPages()}</span></div>
-      <div class="metric-row"><span class="metric-label">Sections</span>
-        <span class="metric-value">${tocItems.length}</span></div>`;
-    showToast("✓ Rapport PDF généré et téléchargé", "success");
- 
+        <span class="metric-value">${pg}</span></div>`;
+    showToast("Rapport PDF genere et telecharge", "success");
+
   } catch(e) {
     console.error("PDF error:", e);
     showToast("Erreur PDF : " + e.message, "error");
   } finally { hideLoader(); }
 }
- 
-// ── Chargement dynamique d'un script ─────────────────────────────────────────
+
+
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
