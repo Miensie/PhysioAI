@@ -32,10 +32,10 @@
 <nav class="tab-nav">
   <button class="tab-btn active" data-tab="analyze">📊 Analyser</button>
   <button class="tab-btn" data-tab="model">📐 Modèles</button>
-  <button class="tab-btn" data-tab="simulate">🔬 Simuler</button>
   <button class="tab-btn" data-tab="ai">🤖 IA</button>
   <button class="tab-btn" data-tab="predict">🎯 Prédiction</button>
   <button class="tab-btn" data-tab="decision">🧠 Décision</button>
+  <button class="tab-btn" data-tab="report">📄 Rapport</button>
 </nav>
 
 <!-- ══════════════════════════════════════════════════
@@ -173,53 +173,7 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════
-     TAB 3 : SIMULER — Modèle vs Données
-══════════════════════════════════════════════════ -->
-<section class="tab-panel" id="tab-simulate">
-
-  <div class="panel-block">
-    <label class="field-label">Données expérimentales (plage Excel)</label>
-    <div class="row-2">
-      <input class="field-input" id="simRange" placeholder="Ex: A1:B30" value="A1:B30"/>
-      <button class="btn btn-secondary" id="btnReadSim">📥 Charger</button>
-    </div>
-  </div>
-
-  <div class="panel-block">
-    <label class="field-label">Modèle à comparer</label>
-    <select class="field-select" id="simModel">
-      <option value="kinetics_order1">Cinétique Ordre 1</option>
-      <option value="kinetics_order2">Cinétique Ordre 2</option>
-      <option value="kinetics_order0">Cinétique Ordre 0</option>
-      <option value="cstr">CSTR Transitoire</option>
-      <option value="pfr">PFR — Réacteur Piston</option>
-      <option value="diffusion">Diffusion (Fick)</option>
-      <option value="heat">Transfert Chaleur (Newton)</option>
-      <option value="rtd">Distribution Temps de Séjour</option>
-      <option value="antoine">Pression Vapeur (Antoine)</option>
-    </select>
-    <button class="btn btn-primary full-width mt-8" id="btnCompare">
-      ⚡ Comparer Modèle vs Données
-    </button>
-  </div>
-
-  <!-- Graphique comparaison -->
-  <div class="chart-card" id="simChartCard" style="display:none">
-    <canvas id="simChart"></canvas>
-  </div>
-  <div class="result-block" id="simResult" style="display:none"></div>
-
-  <!-- Export -->
-  <div class="panel-block mt-8">
-    <button class="btn btn-ghost full-width" id="btnExportResults">
-      📤 Exporter résultats vers Excel
-    </button>
-  </div>
-
-</section>
-
-<!-- ══════════════════════════════════════════════════
-     TAB 4 : INTELLIGENCE ARTIFICIELLE
+     TAB 3 : INTELLIGENCE ARTIFICIELLE
 ══════════════════════════════════════════════════ -->
 <section class="tab-panel" id="tab-ai">
 
@@ -311,7 +265,7 @@
 
 
 <!-- ══════════════════════════════════════════════════
-     TAB 5 : PRÉDICTION
+     TAB 4 : PRÉDICTION
 ══════════════════════════════════════════════════ -->
 <section class="tab-panel" id="tab-predict">
 
@@ -430,7 +384,7 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════
-     TAB 6 : DÉCISION GLOBALE (GEMINI)
+     TAB 5 : DÉCISION GLOBALE (GEMINI)
 ══════════════════════════════════════════════════ -->
 <section class="tab-panel" id="tab-decision">
 
@@ -503,6 +457,105 @@
 
   <!-- Rapport de décision -->
   <div class="decision-report" id="decisionReport" style="display:none"></div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 6 : RAPPORT PDF
+══════════════════════════════════════════════════ -->
+<section class="tab-panel" id="tab-report">
+
+  <div class="panel-block report-header-card">
+    <div class="report-logo-row">
+      <span class="report-logo">⚗</span>
+      <div>
+        <div class="report-title-big">Rapport d'analyse</div>
+        <div class="report-subtitle">PhysioAI Lab — Export PDF professionnel</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Informations du rapport -->
+  <div class="panel-block">
+    <label class="field-label">Informations du rapport</label>
+    <input class="field-input" id="reportTitle"
+           placeholder="Titre du rapport" value="Rapport d'analyse PhysioAI Lab"/>
+    <input class="field-input mt-8" id="reportAuthor"
+           placeholder="Auteur / Organisation"/>
+    <input class="field-input mt-8" id="reportProject"
+           placeholder="Nom du projet / Référence"/>
+    <textarea class="field-input mt-8" id="reportDescription" rows="3"
+      placeholder="Description / contexte de l'analyse…"></textarea>
+  </div>
+
+  <!-- Sections à inclure -->
+  <div class="panel-block">
+    <label class="field-label">Sections à inclure dans le PDF</label>
+    <div class="report-checks">
+      <label class="check-label"><input type="checkbox" class="report-section" id="rpt_data"      checked> Données chargées</label>
+      <label class="check-label"><input type="checkbox" class="report-section" id="rpt_stats"     checked> Statistiques descriptives</label>
+      <label class="check-label"><input type="checkbox" class="report-section" id="rpt_regression"checked> Régression (meilleur modèle)</label>
+      <label class="check-label"><input type="checkbox" class="report-section" id="rpt_physical"  checked> Modèle physique</label>
+      <label class="check-label"><input type="checkbox" class="report-section" id="rpt_ai"        checked> Analyse IA (classement régressions)</label>
+      <label class="check-label"><input type="checkbox" class="report-section" id="rpt_prediction"checked> Prédictions</label>
+      <label class="check-label"><input type="checkbox" class="report-section" id="rpt_decision"  checked> Décision globale</label>
+      <label class="check-label"><input type="checkbox" class="report-section" id="rpt_charts"    checked> Graphiques</label>
+    </div>
+  </div>
+
+  <!-- Mise en page -->
+  <div class="panel-block">
+    <label class="field-label">Mise en page</label>
+    <div class="row-2">
+      <div>
+        <label class="field-label small">Orientation</label>
+        <select class="field-select" id="reportOrientation">
+          <option value="portrait">Portrait</option>
+          <option value="landscape">Paysage</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label small">Format</label>
+        <select class="field-select" id="reportFormat">
+          <option value="A4">A4</option>
+          <option value="Letter">Letter</option>
+        </select>
+      </div>
+    </div>
+    <div class="toggle-row mt-8">
+      <label class="field-label">Inclure logo PhysioAI</label>
+      <label class="toggle">
+        <input type="checkbox" id="reportLogo" checked/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="toggle-row mt-4">
+      <label class="field-label">Numérotation des pages</label>
+      <label class="toggle">
+        <input type="checkbox" id="reportPageNum" checked/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Aperçu -->
+  <div class="panel-block" id="reportPreviewPanel" style="display:none">
+    <label class="field-label">Aperçu du contenu</label>
+    <div class="report-preview" id="reportPreview"></div>
+  </div>
+
+  <!-- Actions -->
+  <div class="row-2" style="margin-top:8px">
+    <button class="btn btn-secondary" id="btnReportPreview">
+      👁 Aperçu
+    </button>
+    <button class="btn btn-primary" id="btnGenerateReport">
+      📄 Générer PDF
+    </button>
+  </div>
+
+  <div class="result-block" id="reportStatus" style="display:none"></div>
 
 </section>
 

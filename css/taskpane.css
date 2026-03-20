@@ -304,3 +304,69 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
   color: var(--text-primary);
   font-style: italic;
 }
+
+/* ═══════════════════════════════════════════════════
+   ONGLET RAPPORT PDF
+═══════════════════════════════════════════════════ */
+
+.report-header-card {
+  background: linear-gradient(135deg, #0d0f14 0%, #12151f 100%) !important;
+  border-color: rgba(255,183,0,.2) !important;
+}
+.report-logo-row {
+  display: flex; align-items: center; gap: 12px;
+}
+.report-logo {
+  font-size: 28px;
+  filter: drop-shadow(0 0 10px var(--amber));
+  flex-shrink: 0;
+}
+.report-title-big {
+  font-family: var(--font-mono);
+  font-size: 14px; font-weight: 700;
+  color: var(--text-primary); letter-spacing: 1px;
+}
+.report-subtitle {
+  font-size: 10px; color: var(--text-muted);
+  letter-spacing: .5px; margin-top: 2px;
+}
+
+.report-checks {
+  display: flex; flex-direction: column; gap: 6px; margin-top: 6px;
+}
+.report-checks .check-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--text-secondary); cursor: pointer;
+  padding: 4px 6px; border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+.report-checks .check-label:hover {
+  background: var(--bg-hover); color: var(--text-primary);
+}
+.report-checks input[type=checkbox] {
+  width: 14px; height: 14px; accent-color: var(--amber); flex-shrink: 0;
+}
+
+.report-preview {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 11px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+/* Bouton génération — style premium */
+#btnGenerateReport {
+  background: linear-gradient(135deg, #ffb700, #ff8c00);
+  color: #0d0f14;
+  font-weight: 700;
+  border: none;
+  box-shadow: 0 4px 15px rgba(255,183,0,.25);
+  transition: var(--transition);
+}
+#btnGenerateReport:hover {
+  box-shadow: 0 6px 20px rgba(255,183,0,.4);
+  transform: translateY(-1px);
+}
